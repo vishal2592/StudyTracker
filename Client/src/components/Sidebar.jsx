@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import {
   LayoutDashboard,
@@ -9,8 +10,10 @@ import {
   ChartNoAxesCombined,
   Menu,
   X,
+  LogOut,
+  ChevronRight,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 const menuItems = [
   {
@@ -46,18 +49,40 @@ const menuItems = [
 ];
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const closeMobileSidebar = () => {
     setIsMobileOpen(false);
   };
 
+  // ==========================================
+  // OPEN PROFILE
+  // User card -> Profile page
+  // ==========================================
+  const handleProfile = () => {
+    closeMobileSidebar();
+    navigate("/profile");
+  };
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+  const handleLogout = () => {
+    closeMobileSidebar();
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    navigate("/login");
+  };
+
   return (
     <>
       {/* =====================================================
-          MOBILE HAMBURGER BUTTON
+          MOBILE MENU BUTTON
       ===================================================== */}
-
       <button
         type="button"
         onClick={() => setIsMobileOpen(true)}
@@ -70,7 +95,6 @@ const Sidebar = () => {
       {/* =====================================================
           MOBILE OVERLAY
       ===================================================== */}
-
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] lg:hidden"
@@ -81,26 +105,18 @@ const Sidebar = () => {
       {/* =====================================================
           SIDEBAR
       ===================================================== */}
-
       <aside
         className={`
           fixed left-0 top-0 z-50 flex h-screen w-[260px]
           flex-col border-r border-slate-200 bg-white
           transition-transform duration-300 ease-in-out
-
           lg:translate-x-0
-
-          ${
-            isMobileOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
-          }
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* =================================================
+        {/* ===================================================
             LOGO
-        ================================================= */}
-
+        =================================================== */}
         <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-100 px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
@@ -118,8 +134,7 @@ const Sidebar = () => {
             </div>
           </div>
 
-          {/* Mobile Close Button */}
-
+          {/* Mobile close button */}
           <button
             type="button"
             onClick={closeMobileSidebar}
@@ -130,10 +145,9 @@ const Sidebar = () => {
           </button>
         </div>
 
-        {/* =================================================
-            NAVIGATION
-        ================================================= */}
-
+        {/* ===================================================
+            MAIN MENU
+        =================================================== */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             Main Menu
@@ -160,9 +174,7 @@ const Sidebar = () => {
                     <>
                       <Icon
                         size={18}
-                        strokeWidth={
-                          isActive ? 2.4 : 2
-                        }
+                        strokeWidth={isActive ? 2.4 : 2}
                         className={
                           isActive
                             ? "text-indigo-600"
@@ -183,18 +195,55 @@ const Sidebar = () => {
           </nav>
         </div>
 
-        {/* =================================================
-            BOTTOM
-        ================================================= */}
-
+        {/* ===================================================
+            BOTTOM SECTION
+        =================================================== */}
         <div className="shrink-0 border-t border-slate-100 p-4">
-          {/* Settings */}
+          {/* =================================================
+              USER PROFILE CARD
 
+              IMPORTANT:
+              No separate Profile menu item.
+
+              User clicks Vishal / Student card
+              -> /profile
+          ================================================= */}
+          <button
+            type="button"
+            onClick={handleProfile}
+            className="group mt-0 flex w-full items-center gap-3 rounded-xl bg-slate-50 p-3 text-left transition-all duration-200 hover:bg-indigo-50"
+          >
+            {/* Avatar */}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600 transition group-hover:bg-indigo-100">
+              V
+            </div>
+
+            {/* User Information */}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-800">
+                Vishal
+              </p>
+
+              <p className="text-[11px] text-slate-400">
+                Student
+              </p>
+            </div>
+
+            {/* Arrow */}
+            <ChevronRight
+              size={17}
+              className="shrink-0 text-slate-300 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-indigo-500"
+            />
+          </button>
+
+          {/* =================================================
+              SETTINGS
+          ================================================= */}
           <NavLink
             to="/settings"
             onClick={closeMobileSidebar}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+              `mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 isActive
                   ? "bg-indigo-50 text-indigo-600"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
@@ -206,23 +255,20 @@ const Sidebar = () => {
             <span>Settings</span>
           </NavLink>
 
-          {/* Profile */}
-
-          <div className="mt-3 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600">
-              V
+          {/* =================================================
+              LOGOUT
+          ================================================= */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="group mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-400 transition group-hover:bg-red-100 group-hover:text-red-600">
+              <LogOut size={16} />
             </div>
 
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-800">
-                Vishal
-              </p>
-
-              <p className="text-[11px] text-slate-400">
-                Student
-              </p>
-            </div>
-          </div>
+            <span>Logout</span>
+          </button>
         </div>
       </aside>
     </>
@@ -230,3 +276,4 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
+

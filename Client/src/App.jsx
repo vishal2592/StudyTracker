@@ -16,6 +16,8 @@ import GoodHabits from "./pages/GoodHabits";
 import Calendar from "./pages/Calendar";
 import StudyAnalytics from "./pages/StudyAnalytics";
 import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
@@ -50,9 +52,13 @@ function App() {
         <Route path="/calendar" element={<Calendar />} />
 
         <Route path="/study-analytics" element={<StudyAnalytics />} />
+
+        <Route path='/profile' element={<Profile />} />
       </Route>
 
       <Route path='/register' element={<Register />} />
+
+      <Route path='/login' element={<Login />} />
 
       {/* Default route */}
       <Route
