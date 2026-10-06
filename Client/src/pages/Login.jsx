@@ -7,12 +7,15 @@ import {
   Lock,
   Mail,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+
+import { loginUser } from "../redux/slicer/userSlice";
 
 const Login = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -23,7 +26,10 @@ const Login = () => {
   });
 
   const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+
+  const { loginLoading, error: loginError } = useSelector(
+    (state) => state.user,
+  );
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -66,15 +72,57 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Frontend validation
     if (!validateForm()) return;
 
-    setIsLoading(true);
+    // Clear previous backend errors
+    setErrors({});
 
-    // Temporary login simulation
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate("/dashboard");
-    }, 1200);
+    try {
+      const loginData = {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+      };
+
+      const result = await dispatch(loginUser(loginData)).unwrap();
+
+      console.log("Login Success:", result);
+
+      // Login successful
+      if (result?.success) {
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      console.error("Login Error:", error);
+
+      // Backend error ko field ke according show karna
+      const message =
+        typeof error === "string"
+          ? error
+          : error?.message || "Login failed. Please try again.";
+
+      const lowerMessage = message.toLowerCase();
+
+      if (
+        lowerMessage.includes("email") &&
+        !lowerMessage.includes("password")
+      ) {
+        setErrors({
+          email: message,
+        });
+      } else if (
+        lowerMessage.includes("password") ||
+        lowerMessage.includes("invalid email or password")
+      ) {
+        setErrors({
+          password: message,
+        });
+      } else {
+        setErrors({
+          general: message,
+        });
+      }
+    }
   };
 
   return (
@@ -113,6 +161,13 @@ const Login = () => {
               Sign in to continue your study journey.
             </p>
           </div>
+
+          {/* General Backend Error */}
+          {(errors.general || loginError) && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600 sm:rounded-xl sm:text-sm">
+              {errors.general || loginError}
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
@@ -241,10 +296,10 @@ const Login = () => {
             {/* Login Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={loginLoading}
               className="group flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-purple-200 transition hover:bg-purple-700 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 sm:rounded-xl sm:py-3 sm:text-sm"
             >
-              {isLoading ? (
+              {loginLoading ? (
                 <>
                   <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white sm:h-4 sm:w-4" />
                   Signing in...
@@ -279,19 +334,6 @@ const Login = () => {
             Create an account
           </Link>
         </div>
-
-        {/* Bottom */}
-        {/* <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-400 sm:mt-4 sm:text-xs">
-          <Sparkles
-            size={11}
-            className="text-purple-400"
-          />
-          <span>Your progress. Your journey.</span>
-        </div>
-
-        <p className="mt-1 text-center text-[9px] text-slate-400 sm:text-[11px]">
-          © 2026 StudyFlow
-        </p> */}
       </div>
     </div>
   );

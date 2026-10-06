@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   User,
   Mail,
@@ -20,22 +20,67 @@ import {
   X,
   Save,
 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { getProfile } from "../redux/slicer/userSlice";
 
 const Profile = () => {
+  const dispatch = useDispatch();
+
+  const {
+    user,
+    profileLoading,
+    error: profileError,
+  } = useSelector((state) => state.user);
+
   const [isEditing, setIsEditing] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: "Vishal Kumar",
-    email: "vishal@example.com",
-    phone: "+91 98765 43210",
-    location: "Bihar, India",
-    dob: "15 August 2002",
-    education: "B.Tech Computer Engineering",
+    name: "",
+    email: "",
+    phone: "",
+    location: "",
+    dob: "",
+    education: "",
     goal: "Prepare for competitive exams",
     studyTime: "6 - 8 hours",
   });
 
   const [formData, setFormData] = useState(profile);
+
+  // =====================================================
+  // GET PROFILE FROM BACKEND
+  // GET /api/auth/profile
+  // =====================================================
+
+  useEffect(() => {
+    dispatch(getProfile());
+  }, [dispatch]);
+
+  // =====================================================
+  // SET BACKEND USER DATA INTO PROFILE STATE
+  // =====================================================
+
+  useEffect(() => {
+    if (!user) return;
+
+    const profileData = {
+      name: user.fullName || "",
+      email: user.email || "",
+      phone: user.mobileNumber || "",
+      location: user.location || "",
+      dob: user.dob || "",
+      education: user.education || "",
+      goal: user.goal || "Prepare for competitive exams",
+      studyTime: user.studyTime || "6 - 8 hours",
+    };
+
+    setProfile(profileData);
+    setFormData(profileData);
+  }, [user]);
+
+  // =====================================================
+  // HANDLE INPUT CHANGE
+  // =====================================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -46,15 +91,27 @@ const Profile = () => {
     }));
   };
 
+  // =====================================================
+  // EDIT PROFILE
+  // =====================================================
+
   const handleEdit = () => {
     setFormData(profile);
     setIsEditing(true);
   };
 
+  // =====================================================
+  // CANCEL EDIT
+  // =====================================================
+
   const handleCancel = () => {
     setFormData(profile);
     setIsEditing(false);
   };
+
+  // =====================================================
+  // SAVE PROFILE
+  // =====================================================
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -63,12 +120,41 @@ const Profile = () => {
     setIsEditing(false);
   };
 
+  // =====================================================
+  // LOADING
+  // =====================================================
+
+  if (profileLoading && !user) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
+
+          <p className="text-sm font-medium text-slate-500">
+            Loading profile...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl">
 
       {/* =====================================================
+          ERROR
+      ===================================================== */}
+
+      {profileError && (
+        <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+          {profileError}
+        </div>
+      )}
+
+      {/* =====================================================
           PAGE HEADER
       ===================================================== */}
+
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-purple-600">
@@ -97,6 +183,7 @@ const Profile = () => {
       {/* =====================================================
           PROFILE HERO
       ===================================================== */}
+
       <div className="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
 
         {/* Cover */}
@@ -123,7 +210,7 @@ const Profile = () => {
               {/* Avatar */}
               <div className="relative">
                 <div className="flex h-24 w-24 items-center justify-center rounded-3xl border-4 border-white bg-gradient-to-br from-purple-100 to-indigo-100 text-3xl font-bold text-purple-600 shadow-lg sm:h-28 sm:w-28 sm:text-4xl">
-                  VK
+                  {getInitials(profile.name)}
                 </div>
 
                 <button
@@ -138,13 +225,13 @@ const Profile = () => {
               {/* Name */}
               <div className="pb-1">
                 <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                  {profile.name}
+                  {profile.name || "Student"}
                 </h2>
 
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <div className="flex items-center gap-1.5 text-sm text-slate-500">
                     <Mail size={14} />
-                    {profile.email}
+                    {profile.email || "No email"}
                   </div>
 
                   <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:block" />
@@ -168,11 +255,13 @@ const Profile = () => {
       {/* =====================================================
           MAIN GRID
       ===================================================== */}
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
         {/* =================================================
             LEFT / PERSONAL INFORMATION
         ================================================= */}
+
         <div className="lg:col-span-2">
 
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -195,46 +284,40 @@ const Profile = () => {
 
             <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6">
 
-              {/* Name */}
               <ProfileInfo
                 icon={User}
                 label="Full Name"
-                value={profile.name}
+                value={profile.name || "Not added"}
               />
 
-              {/* Email */}
               <ProfileInfo
                 icon={Mail}
                 label="Email Address"
-                value={profile.email}
+                value={profile.email || "Not added"}
               />
 
-              {/* Phone */}
               <ProfileInfo
                 icon={Phone}
                 label="Phone Number"
-                value={profile.phone}
+                value={profile.phone || "Not added"}
               />
 
-              {/* Location */}
               <ProfileInfo
                 icon={MapPin}
                 label="Location"
-                value={profile.location}
+                value={profile.location || "Not added"}
               />
 
-              {/* DOB */}
               <ProfileInfo
                 icon={CalendarDays}
                 label="Date of Birth"
-                value={profile.dob}
+                value={profile.dob || "Not added"}
               />
 
-              {/* Education */}
               <ProfileInfo
                 icon={GraduationCap}
                 label="Education"
-                value={profile.education}
+                value={profile.education || "Not added"}
               />
             </div>
           </div>
@@ -242,6 +325,7 @@ const Profile = () => {
           {/* =================================================
               STUDY PREFERENCES
           ================================================= */}
+
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
 
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -286,6 +370,7 @@ const Profile = () => {
         {/* =================================================
             RIGHT COLUMN
         ================================================= */}
+
         <div className="space-y-6">
 
           {/* Stats */}
@@ -422,6 +507,7 @@ const Profile = () => {
       {/* =====================================================
           EDIT PROFILE MODAL
       ===================================================== */}
+
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
 
@@ -556,6 +642,22 @@ const Profile = () => {
       )}
     </div>
   );
+};
+
+/* =========================================================
+   GET INITIALS
+========================================================= */
+
+const getInitials = (name) => {
+  if (!name) return "U";
+
+  const words = name.trim().split(" ");
+
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase()
 };
 
 /* =========================================================

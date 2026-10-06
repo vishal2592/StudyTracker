@@ -1,7 +1,9 @@
+
 import "./App.css";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import DashboardLayout from "./layouts/DashboardLayout";
+import PrivateRoute from "./components/PrivateRoute";
 
 import Dashboard from "./pages/Dashboard";
 import StudyTimer from "./pages/StudyTimer";
@@ -22,58 +24,91 @@ import Profile from "./pages/Profile";
 function App() {
   return (
     <Routes>
-      <Route element={<DashboardLayout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
+      {/* =========================================
+          PUBLIC ROUTES
+          Login/Register ke liye authentication nahi chahiye
+      ========================================== */}
 
-        <Route path="/study-timer" element={<StudyTimer />} />
+      <Route path="/register" element={<Register />} />
 
-        <Route path="/daily-target" element={<DailyTarget />} />
+      <Route path="/login" element={<Login />} />
 
-        <Route path="/tasks" element={<Tasks />} />
+      {/* =========================================
+          PRIVATE ROUTES
+          Login required
+      ========================================== */}
 
-        <Route path="/report" element={<Report />} />
+      <Route element={<PrivateRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
 
-        <Route
-          path="/subject-tracker"
-          element={<SubjectTracker />}
-        />
+          <Route
+            path="/study-timer"
+            element={<StudyTimer />}
+          />
 
-        <Route path="/notes" element={<Notes />} />
+          <Route
+            path="/daily-target"
+            element={<DailyTarget />}
+          />
 
-        <Route path="/tests" element={<Tests />} />
+          <Route path="/tasks" element={<Tasks />} />
 
-        <Route path="/progress" element={<Progress />} />
+          <Route path="/report" element={<Report />} />
 
-        <Route
-          path="/good-habits"
-          element={<GoodHabits />}
-        />
+          <Route
+            path="/subject-tracker"
+            element={<SubjectTracker />}
+          />
 
-        <Route path="/calendar" element={<Calendar />} />
+          <Route path="/notes" element={<Notes />} />
 
-        <Route path="/study-analytics" element={<StudyAnalytics />} />
+          <Route path="/tests" element={<Tests />} />
 
-        <Route path='/profile' element={<Profile />} />
+          <Route path="/progress" element={<Progress />} />
+
+          <Route
+            path="/good-habits"
+            element={<GoodHabits />}
+          />
+
+          <Route
+            path="/calendar"
+            element={<Calendar />}
+          />
+
+          <Route
+            path="/study-analytics"
+            element={<StudyAnalytics />}
+          />
+
+          <Route
+            path="/profile"
+            element={<Profile />}
+          />
+        </Route>
       </Route>
 
-      <Route path='/register' element={<Register />} />
+      {/* =========================================
+          DEFAULT ROUTE
+      ========================================== */}
 
-      <Route path='/login' element={<Login />} />
-
-      {/* Default route */}
       <Route
         path="/"
         element={<Navigate to="/dashboard" replace />}
       />
 
-      {/* 404 */}
+      {/* =========================================
+          404
+      ========================================== */}
+
       <Route
         path="*"
         element={<Navigate to="/dashboard" replace />}
       />
     </Routes>
-    
   );
 }
 
 export default App;
+

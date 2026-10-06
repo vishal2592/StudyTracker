@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   BookOpen,
@@ -19,89 +18,35 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+
+import {
+  getTargets,
+  createTarget,
+  editTarget,
+  toggleTarget,
+  deleteTarget,
+} from "../redux/slicer/dailyTargetSlice";
 
 const DailyTargets = () => {
-  // =====================================================
-  // DUMMY TARGET DATA
-  // Later this will come from backend / Redux
-  // =====================================================
-
-  const [targets, setTargets] = useState([
-    {
-      id: 1,
-      title: "Biology - Human Physiology",
-      subject: "Biology",
-      duration: "2 hours",
-      priority: "High",
-      date: "2026-10-06",
-      description:
-        "Complete Human Physiology chapter and revise important concepts.",
-      completed: true,
-      completedAt: "08:45 AM",
-    },
-    {
-      id: 2,
-      title: "Physics - Current Electricity",
-      subject: "Physics",
-      duration: "2 hours",
-      priority: "High",
-      date: "2026-10-06",
-      description:
-        "Study current electricity concepts and solve numerical problems.",
-      completed: false,
-      completedAt: null,
-    },
-    {
-      id: 3,
-      title: "Chemistry - Organic Chemistry",
-      subject: "Chemistry",
-      duration: "1.5 hours",
-      priority: "Medium",
-      date: "2026-10-06",
-      description:
-        "Revise important organic chemistry reactions and mechanisms.",
-      completed: false,
-      completedAt: null,
-    },
-    {
-      id: 4,
-      title: "50 MCQs Practice",
-      subject: "Practice",
-      duration: "1 hour",
-      priority: "High",
-      date: "2026-10-06",
-      description: "Solve 50 mixed subject MCQs and analyze mistakes.",
-      completed: false,
-      completedAt: null,
-    },
-    {
-      id: 5,
-      title: "Revision - Previous Questions",
-      subject: "Revision",
-      duration: "1 hour",
-      priority: "Low",
-      date: "2026-10-06",
-      description:
-        "Revise previous year questions and mark difficult topics.",
-      completed: false,
-      completedAt: null,
-    },
-    {
-      id: 6,
-      title: "Mathematics - Integration",
-      subject: "Mathematics",
-      duration: "2 hours",
-      priority: "High",
-      date: "2026-10-07",
-      description:
-        "Practice integration formulas and previous questions.",
-      completed: false,
-      completedAt: null,
-    },
-  ]);
+  const dispatch = useDispatch();
 
   // =====================================================
-  // DATE STATE
+  // REDUX STATE
+  // =====================================================
+
+  const {
+    targets,
+    loading,
+    error,
+    createLoading,
+    editLoading,
+    toggleLoading,
+    deleteLoading,
+  } = useSelector((state) => state.dailyTarget);
+
+  // =====================================================
+  // DATE HELPERS
   // =====================================================
 
   const getTodayKey = () => {
@@ -117,6 +62,14 @@ const DailyTargets = () => {
   const [selectedDate, setSelectedDate] = useState(getTodayKey());
 
   // =====================================================
+  // FETCH TARGETS
+  // =====================================================
+
+  useEffect(() => {
+    dispatch(getTargets(selectedDate));
+  }, [dispatch, selectedDate]);
+
+  // =====================================================
   // MODAL STATE
   // =====================================================
 
@@ -125,7 +78,6 @@ const DailyTargets = () => {
 
   // =====================================================
   // FORM STATE
-  // ONLY TITLE + PLANNED DURATION
   // =====================================================
 
   const initialForm = {
@@ -142,37 +94,73 @@ const DailyTargets = () => {
   const [statusFilter, setStatusFilter] = useState("all");
 
   // =====================================================
+  // DURATION HELPER
+  // Backend stores duration in minutes
+  // =====================================================
+
+  const durationToMinutes = (duration) => {
+    const durationMap = {
+      "30 minutes": 30,
+      "1 hour": 60,
+      "1.5 hours": 90,
+      "2 hours": 120,
+      "2.5 hours": 150,
+      "3 hours": 180,
+      "4 hours": 240,
+    };
+
+    return durationMap[duration] || 60;
+  };
+
+  const minutesToDuration = (minutes) => {
+    const durationMap = {
+      30: "30 minutes",
+      60: "1 hour",
+      90: "1.5 hours",
+      120: "2 hours",
+      150: "2.5 hours",
+      180: "3 hours",
+      240: "4 hours",
+    };
+
+    return durationMap[minutes] || "1 hour";
+  };
+
+  // =====================================================
   // CURRENT DATE TARGETS
+  // Backend already returns selected date targets
+  // =====================================================
+
+  const dailyTargets = useMemo(() => {
+    return Array.isArray(targets) ? targets : [];
+  }, [targets]);
+
+  // =====================================================
+  // FILTERED TARGETS
   // =====================================================
 
   const filteredTargets = useMemo(() => {
-    return targets
-      .filter((target) => target.date === selectedDate)
-      .filter((target) => {
-        if (statusFilter === "completed") {
-          return target.completed;
-        }
+    return dailyTargets.filter((target) => {
+      if (statusFilter === "completed") {
+        return target.isCompleted;
+      }
 
-        if (statusFilter === "pending") {
-          return !target.completed;
-        }
+      if (statusFilter === "pending") {
+        return !target.isCompleted;
+      }
 
-        return true;
-      });
-  }, [targets, selectedDate, statusFilter]);
+      return true;
+    });
+  }, [dailyTargets, statusFilter]);
 
   // =====================================================
   // DAILY SUMMARY
   // =====================================================
 
-  const dailyTargets = useMemo(() => {
-    return targets.filter((target) => target.date === selectedDate);
-  }, [targets, selectedDate]);
-
   const totalTargets = dailyTargets.length;
 
   const completedTargets = dailyTargets.filter(
-    (target) => target.completed
+    (target) => target.isCompleted
   ).length;
 
   const pendingTargets = totalTargets - completedTargets;
@@ -242,11 +230,11 @@ const DailyTargets = () => {
   // =====================================================
 
   const handleEditTarget = (target) => {
-    setEditingTargetId(target.id);
+    setEditingTargetId(target._id);
 
     setFormData({
-      title: target.title,
-      duration: target.duration,
+      title: target.title || "",
+      duration: minutesToDuration(target.durationMinutes),
     });
 
     setShowModal(true);
@@ -279,7 +267,7 @@ const DailyTargets = () => {
   // ADD / UPDATE TARGET
   // =====================================================
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const trimmedTitle = formData.title.trim();
@@ -288,56 +276,52 @@ const DailyTargets = () => {
       return;
     }
 
-    if (editingTargetId) {
+    const durationMinutes = durationToMinutes(formData.duration);
+
+    try {
       // =================================================
       // UPDATE TARGET
       // =================================================
 
-      setTargets((prev) =>
-        prev.map((target) =>
-          target.id === editingTargetId
-            ? {
-                ...target,
-                title: trimmedTitle,
-                duration: formData.duration,
-              }
-            : target
-        )
-      );
-    } else {
+      if (editingTargetId) {
+        await dispatch(
+          editTarget({
+            id: editingTargetId,
+            targetData: {
+              title: trimmedTitle,
+              durationMinutes,
+              date: selectedDate,
+            },
+          })
+        ).unwrap();
+      }
+
       // =================================================
-      // ADD TARGET
+      // CREATE TARGET
       // =================================================
 
-      const newTarget = {
-        id: Date.now(),
+      else {
+        await dispatch(
+          createTarget({
+            title: trimmedTitle,
+            durationMinutes,
+            date: selectedDate,
+          })
+        ).unwrap();
+      }
 
-        title: trimmedTitle,
-
-        duration: formData.duration,
-
-        // Existing fields are kept for current UI/data structure.
-        subject: "Other",
-        priority: "Medium",
-        date: selectedDate,
-        description: "",
-
-        completed: false,
-        completedAt: null,
-      };
-
-      setTargets((prev) => [newTarget, ...prev]);
+      handleCloseModal();
+    } catch (error) {
+      console.error("Target save error:", error);
     }
-
-    handleCloseModal();
   };
 
   // =====================================================
   // DELETE TARGET
   // =====================================================
 
-  const handleDeleteTarget = (id) => {
-    const target = targets.find((item) => item.id === id);
+  const handleDeleteTarget = async (id) => {
+    const target = dailyTargets.find((item) => item._id === id);
 
     if (!target) return;
 
@@ -347,51 +331,23 @@ const DailyTargets = () => {
 
     if (!confirmed) return;
 
-    setTargets((prev) =>
-      prev.filter((target) => target.id !== id)
-    );
+    try {
+      await dispatch(deleteTarget(id)).unwrap();
+    } catch (error) {
+      console.error("Delete target error:", error);
+    }
   };
 
   // =====================================================
   // TOGGLE TARGET
   // =====================================================
 
-  const handleToggleTarget = (id) => {
-    setTargets((prev) =>
-      prev.map((target) => {
-        if (target.id !== id) return target;
-
-        const nextCompleted = !target.completed;
-
-        return {
-          ...target,
-          completed: nextCompleted,
-          completedAt: nextCompleted
-            ? new Date().toLocaleTimeString("en-IN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : null,
-        };
-      })
-    );
-  };
-
-  // =====================================================
-  // SUBJECT STYLE
-  // =====================================================
-
-  const getSubjectStyle = (subject) => {
-    const styles = {
-      Biology: "bg-emerald-50 text-emerald-600",
-      Physics: "bg-blue-50 text-blue-600",
-      Chemistry: "bg-purple-50 text-purple-600",
-      Mathematics: "bg-orange-50 text-orange-600",
-      Practice: "bg-pink-50 text-pink-600",
-      Revision: "bg-cyan-50 text-cyan-600",
-    };
-
-    return styles[subject] || "bg-slate-100 text-slate-600";
+  const handleToggleTarget = async (id) => {
+    try {
+      await dispatch(toggleTarget(id)).unwrap();
+    } catch (error) {
+      console.error("Toggle target error:", error);
+    }
   };
 
   return (
@@ -497,6 +453,26 @@ const DailyTargets = () => {
 
           </div>
         </div>
+
+        {/* =====================================================
+            ERROR
+        ===================================================== */}
+
+        {error && (
+          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
+            <AlertCircle size={20} className="mt-0.5 shrink-0" />
+
+            <div>
+              <p className="text-sm font-semibold">
+                Unable to load targets
+              </p>
+
+              <p className="mt-1 text-sm text-red-600">
+                {error}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* =====================================================
             SUMMARY CARDS
@@ -730,7 +706,17 @@ const DailyTargets = () => {
 
           <div className="divide-y divide-slate-100">
 
-            {filteredTargets.length === 0 ? (
+            {loading ? (
+              <div className="px-5 py-16 text-center">
+
+                <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-purple-100 border-t-purple-600" />
+
+                <p className="mt-4 text-sm font-medium text-slate-500">
+                  Loading your targets...
+                </p>
+
+              </div>
+            ) : filteredTargets.length === 0 ? (
               <div className="px-5 py-16 text-center">
 
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -758,12 +744,11 @@ const DailyTargets = () => {
               </div>
             ) : (
               filteredTargets.map((target) => {
-
                 return (
                   <div
-                    key={target.id}
+                    key={target._id}
                     className={`p-5 transition hover:bg-slate-50/70 ${
-                      target.completed
+                      target.isCompleted
                         ? "bg-emerald-50/20"
                         : ""
                     }`}
@@ -776,16 +761,17 @@ const DailyTargets = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          handleToggleTarget(target.id)
+                          handleToggleTarget(target._id)
                         }
-                        className="mt-1 shrink-0"
+                        disabled={toggleLoading}
+                        className="mt-1 shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label={
-                          target.completed
+                          target.isCompleted
                             ? "Mark target as pending"
                             : "Mark target as completed"
                         }
                       >
-                        {target.completed ? (
+                        {target.isCompleted ? (
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
                             <Check size={18} strokeWidth={3} />
                           </span>
@@ -808,7 +794,7 @@ const DailyTargets = () => {
 
                             <h3
                               className={`text-base font-semibold sm:text-lg ${
-                                target.completed
+                                target.isCompleted
                                   ? "text-slate-400 line-through"
                                   : "text-slate-900"
                               }`}
@@ -827,7 +813,10 @@ const DailyTargets = () => {
                               onClick={() =>
                                 handleEditTarget(target)
                               }
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
+                              disabled={
+                                editLoading || deleteLoading
+                              }
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                               title="Edit target"
                             >
                               <Pencil size={17} />
@@ -836,9 +825,10 @@ const DailyTargets = () => {
                             <button
                               type="button"
                               onClick={() =>
-                                handleDeleteTarget(target.id)
+                                handleDeleteTarget(target._id)
                               }
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                              disabled={deleteLoading}
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                               title="Delete target"
                             >
                               <Trash2 size={17} />
@@ -852,25 +842,31 @@ const DailyTargets = () => {
 
                         <div className="mt-4 flex flex-wrap items-center gap-2">
 
-                          <span
-                            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${getSubjectStyle(
-                              target.subject
-                            )}`}
-                          >
-                            {target.subject}
+                          <span className="rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-600">
+                            Study Target
                           </span>
 
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                             <Clock3 size={13} />
-                            {target.duration}
+                            {minutesToDuration(
+                              target.durationMinutes
+                            )}
                           </span>
 
-                          {target.completed &&
+                          {target.isCompleted &&
                             target.completedAt && (
                               <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
                                 <CheckCircle2 size={13} />
                                 Completed at{" "}
-                                {target.completedAt}
+                                {new Date(
+                                  target.completedAt
+                                ).toLocaleTimeString(
+                                  "en-IN",
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  }
+                                )}
                               </span>
                             )}
 
@@ -970,9 +966,6 @@ const DailyTargets = () => {
 
       {/* =====================================================
           ADD / EDIT MODAL
-          ONLY:
-          1. Target Title
-          2. Planned Duration
       ===================================================== */}
 
       {showModal && (
@@ -1115,9 +1108,15 @@ const DailyTargets = () => {
 
                 <button
                   type="submit"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700"
+                  disabled={createLoading || editLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {editingTargetId ? (
+                  {createLoading || editLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Saving...
+                    </>
+                  ) : editingTargetId ? (
                     <>
                       <Save size={17} />
                       Update Target
