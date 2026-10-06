@@ -262,14 +262,16 @@ const deleteTarget = async (req, res) => {
 
 // EDIT DAILY TARGET
 
+// EDIT DAILY TARGET
+
 const editTarget = async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const { id } = req.params;
-    const { title, date } = req.body;
+    const { title, durationMinutes, date } = req.body;
 
-    // Title Required
+    // Title validation
     if (!title || !title.trim()) {
       return res.status(400).json({
         success: false,
@@ -277,7 +279,28 @@ const editTarget = async (req, res) => {
       });
     }
 
-    // Date Required
+    // Duration validation
+    if (
+      durationMinutes === undefined ||
+      durationMinutes === null ||
+      durationMinutes === ""
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Target duration is required",
+      });
+    }
+
+    const duration = Number(durationMinutes);
+
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Target duration must be greater than 0 minutes",
+      });
+    }
+
+    // Date validation
     if (!date) {
       return res.status(400).json({
         success: false,
@@ -285,7 +308,6 @@ const editTarget = async (req, res) => {
       });
     }
 
-    // Validate Date Format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     if (!dateRegex.test(date)) {
@@ -295,10 +317,9 @@ const editTarget = async (req, res) => {
       });
     }
 
-    // Convert Date to IST Day
     const targetDate = new Date(`${date}T00:00:00+05:30`);
 
-    // Find Target
+    // Find target belonging to logged-in user
     const target = await DailyTarget.findOne({
       _id: id,
       user: userId,
@@ -311,8 +332,9 @@ const editTarget = async (req, res) => {
       });
     }
 
-    // Update Target
+    // Update target
     target.title = title.trim();
+    target.durationMinutes = duration;
     target.date = targetDate;
 
     await target.save();

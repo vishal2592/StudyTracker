@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
+const LoginHistory = require("../models/loginHistory.model");
 
 const registerUser = async (req, res) => {
   try {
@@ -66,7 +67,6 @@ const registerUser = async (req, res) => {
     });
   }
 };
-
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -106,6 +106,12 @@ const loginUser = async (req, res) => {
         expiresIn: "7d",
       },
     );
+
+    // SAVE LOGIN HISTORY
+    await LoginHistory.create({
+      user: user._id,
+      loginTime: new Date(),
+    });
 
     res.status(200).json({
       success: true,

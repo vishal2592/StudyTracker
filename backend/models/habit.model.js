@@ -15,6 +15,34 @@ const habitSchema = new mongoose.Schema(
       trim: true,
     },
 
+    reminder: {
+      type: String,
+      default: "08:00",
+    },
+
+    category: {
+      type: String,
+      default: "Productivity",
+      trim: true,
+    },
+
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
+    frequency: {
+      type: String,
+      enum: ["Daily"],
+      default: "Daily",
+    },
+
+    startDate: {
+      type: Date,
+      default: Date.now,
+    },
+
     points: {
       type: Number,
       default: 5,

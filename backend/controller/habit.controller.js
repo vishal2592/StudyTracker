@@ -2,11 +2,13 @@ const Habit = require("../models/habit.model");
 
 // CREATE HABIT
 
+// CREATE HABIT
+
 const createHabit = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const { name } = req.body;
+    const { name, reminder, startDate } = req.body;
 
     // Name Required
     if (!name || !name.trim()) {
@@ -14,6 +16,34 @@ const createHabit = async (req, res) => {
         success: false,
         message: "Habit name is required",
       });
+    }
+
+    // Reminder Validation
+    const habitReminder = reminder || "08:00";
+
+    const reminderRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+    if (!reminderRegex.test(habitReminder)) {
+      return res.status(400).json({
+        success: false,
+        message: "Reminder must be in HH:MM format",
+      });
+    }
+
+    // Start Date
+    let habitStartDate = new Date();
+
+    if (startDate) {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+      if (!dateRegex.test(startDate)) {
+        return res.status(400).json({
+          success: false,
+          message: "Start date must be in YYYY-MM-DD format",
+        });
+      }
+
+      habitStartDate = new Date(`${startDate}T00:00:00+05:30`);
     }
 
     // Check Duplicate Habit
@@ -34,6 +64,11 @@ const createHabit = async (req, res) => {
     const habit = await Habit.create({
       user: userId,
       name: name.trim(),
+      reminder: habitReminder,
+      category: "Productivity",
+      description: "",
+      frequency: "Daily",
+      startDate: habitStartDate,
       points: 5,
       isActive: true,
     });
