@@ -1,49 +1,48 @@
 
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useMemo, useState } from "react";
 import {
-  ArrowRight,
   BookOpen,
-  Check,
+  User,
+  Mail,
+  Lock,
   Eye,
   EyeOff,
-  LockKeyhole,
-  Mail,
-  User,
+  Phone,
+  ArrowRight,
   CheckCircle2,
-  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 
 const Register = () => {
   const navigate = useNavigate();
-
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
 
-  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+    agree: false,
+  });
 
   const [errors, setErrors] = useState({});
-  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // ==========================================
-  // HANDLE INPUT CHANGE
-  // ==========================================
-
+  // =====================================================
+  // HANDLE INPUT
+  // =====================================================
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: type === "checkbox" ? checked : value,
     }));
 
     if (errors[name]) {
@@ -52,69 +51,91 @@ const Register = () => {
         [name]: "",
       }));
     }
-
-    if (errors.general) {
-      setErrors((prev) => ({
-        ...prev,
-        general: "",
-      }));
-    }
-
-    setSuccessMessage("");
   };
 
-  // ==========================================
-  // FORM VALIDATION
-  // ==========================================
+  // =====================================================
+  // PASSWORD STRENGTH
+  // =====================================================
+  const passwordStrength = useMemo(() => {
+    const password = formData.password;
 
+    if (!password) {
+      return {
+        label: "",
+        width: "w-0",
+      };
+    }
+
+    let score = 0;
+
+    if (password.length >= 6) score++;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    if (score <= 2) {
+      return {
+        label: "Weak",
+        width: "w-1/3",
+      };
+    }
+
+    if (score <= 3) {
+      return {
+        label: "Medium",
+        width: "w-2/3",
+      };
+    }
+
+    return {
+      label: "Strong",
+      width: "w-full",
+    };
+  }, [formData.password]);
+
+  // =====================================================
+  // VALIDATION
+  // =====================================================
   const validateForm = () => {
     const newErrors = {};
 
-    const trimmedName = formData.fullName.trim();
-    const trimmedEmail = formData.email.trim();
-
-    // Full Name
-    if (!trimmedName) {
-      newErrors.fullName = "Please enter your full name.";
-    } else if (trimmedName.length < 3) {
-      newErrors.fullName =
-        "Name must be at least 3 characters.";
+    if (!formData.name.trim()) {
+      newErrors.name = "Name is required.";
     }
 
-    // Email
-    if (!trimmedEmail) {
-      newErrors.email = "Please enter your email.";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required.";
     } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
     ) {
-      newErrors.email =
-        "Please enter a valid email address.";
+      newErrors.email = "Please enter a valid email.";
     }
 
-    // Password
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required.";
+    } else if (!/^[0-9]{10}$/.test(formData.phone)) {
+      newErrors.phone = "Enter a valid 10-digit phone number.";
+    }
+
     if (!formData.password) {
+      newErrors.password = "Password is required.";
+    } else if (formData.password.length < 6) {
       newErrors.password =
-        "Please create a password.";
-    } else if (formData.password.length < 8) {
-      newErrors.password =
-        "Password must be at least 8 characters.";
+        "Password must be at least 6 characters.";
     }
 
-    // Confirm Password
     if (!formData.confirmPassword) {
       newErrors.confirmPassword =
         "Please confirm your password.";
     } else if (
       formData.password !== formData.confirmPassword
     ) {
-      newErrors.confirmPassword =
-        "Passwords do not match.";
+      newErrors.confirmPassword = "Passwords do not match.";
     }
 
-    // Terms
-    if (!agreeTerms) {
-      newErrors.terms =
-        "Please accept the Terms & Privacy Policy.";
+    if (!formData.agree) {
+      newErrors.agree = "Please accept the terms.";
     }
 
     setErrors(newErrors);
@@ -122,763 +143,521 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ==========================================
+  // =====================================================
   // SUBMIT
-  // ==========================================
-
+  // =====================================================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setSuccessMessage("");
+    if (!validateForm()) return;
 
-    const isValid = validateForm();
+    setIsLoading(true);
 
-    if (!isValid) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      /*
-        Backend API will be connected here.
-
-        Example:
-
-        const response = await api.post("/auth/register", {
-          fullName: formData.fullName.trim(),
-          email: formData.email.trim().toLowerCase(),
-          password: formData.password,
-        });
-      */
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, 1000)
-      );
-
-      setSuccessMessage(
-        "Account created successfully!"
-      );
-
-      setFormData({
-        fullName: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-      });
-
-      setAgreeTerms(false);
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsSuccess(true);
 
       setTimeout(() => {
         navigate("/login");
-      }, 1000);
-    } catch (error) {
-      console.error("Registration error:", error);
-
-      setErrors({
-        general:
-          error?.response?.data?.message ||
-          "Something went wrong. Please try again.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      }, 1200);
+    }, 1200);
   };
 
-  // ==========================================
-  // PASSWORD STRENGTH
-  // ==========================================
+  // =====================================================
+  // SUCCESS SCREEN
+  // =====================================================
+  if (isSuccess) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center overflow-hidden bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-xl shadow-slate-200/60 sm:p-10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <CheckCircle2 size={34} />
+          </div>
 
-  const password = formData.password;
+          <h2 className="mt-5 text-2xl font-bold text-slate-900">
+            Account Created!
+          </h2>
 
-  const passwordChecks = {
-    length: password.length >= 8,
-    number: /\d/.test(password),
-    uppercase: /[A-Z]/.test(password),
-  };
-
-  const passwordStrength =
-    Object.values(passwordChecks).filter(Boolean).length;
-
-  // ==========================================
-  // INPUT CLASS
-  // ==========================================
-
-  const getInputClass = (fieldName) => {
-    return `
-      box-border w-full rounded-xl border bg-white
-      py-3 sm:py-3.5
-      pl-11 pr-4
-      text-sm text-slate-900
-      outline-none transition
-      placeholder:text-slate-400
-      ${
-        errors[fieldName]
-          ? "border-rose-300 focus:border-rose-500 focus:ring-4 focus:ring-rose-50"
-          : "border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50"
-      }
-    `;
-  };
-
-  // ==========================================
-  // UI
-  // ==========================================
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Your StudyFlow account has been created successfully.
+            Redirecting you to login...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="flex w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+    <div className="h-screen w-full overflow-hidden bg-slate-50">
+      <div className="flex h-full w-full items-center justify-center px-3 py-2 sm:px-5 sm:py-3 lg:px-8 lg:py-4">
+        <div className="flex h-full max-h-[700px] w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 sm:rounded-3xl">
 
-        {/* =========================================
-            LEFT BRANDING
-        ========================================= */}
+          {/* =================================================
+              LEFT BRANDING
+              DESKTOP ONLY
+          ================================================= */}
+          <div className="relative hidden w-[42%] overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 text-white lg:flex lg:flex-col lg:justify-between xl:p-10">
 
-        <div className="relative hidden w-5/12 overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 lg:flex xl:w-1/2">
+            {/* Decorative circles */}
+            <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/10" />
 
-          {/* Background Circles */}
-
-          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 xl:h-72 xl:w-72" />
-
-          <div className="absolute -bottom-32 -left-20 h-72 w-72 rounded-full bg-white/10 xl:h-80 xl:w-80" />
-
-          <div className="relative z-10 flex min-h-[720px] w-full flex-col justify-between p-8 xl:p-10 2xl:p-12">
+            <div className="absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-white/10" />
 
             {/* Logo */}
+            <div className="relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                  <BookOpen size={23} />
+                </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-indigo-600 shadow-lg xl:h-11 xl:w-11">
-                <BookOpen size={21} />
-              </div>
+                <div>
+                  <h1 className="text-lg font-bold">
+                    StudyFlow
+                  </h1>
 
-              <div>
-                <h1 className="text-lg font-bold tracking-tight text-white xl:text-xl">
-                  StudyFlow
-                </h1>
-
-                <p className="text-[11px] text-indigo-100 xl:text-xs">
-                  Study Dashboard
-                </p>
+                  <p className="text-[11px] text-indigo-100">
+                    Study Dashboard
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Main Content */}
-
-            <div className="my-8 max-w-lg">
-
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-indigo-50 backdrop-blur-sm xl:mb-6 xl:px-3.5 xl:py-2 xl:text-xs">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-
-                Start your study journey
+            <div className="relative z-10 max-w-md">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium backdrop-blur-sm">
+                <Sparkles size={13} />
+                Start your journey
               </div>
 
-              <h2 className="text-3xl font-bold leading-tight text-white xl:text-4xl 2xl:text-5xl">
-                Study smarter.
+              <h2 className="text-3xl font-bold leading-tight xl:text-4xl">
+                Build better
                 <br />
-                Stay consistent.
+                study habits.
               </h2>
 
-              <p className="mt-4 max-w-lg text-sm leading-6 text-indigo-100 xl:mt-5 xl:text-base xl:leading-7">
-                Build better study habits, track your progress,
-                manage daily targets and understand how you are
-                improving every day.
+              <p className="mt-4 max-w-sm text-sm leading-6 text-indigo-100">
+                Track your study time, manage daily targets,
+                build good habits and stay consistent with
+                StudyFlow.
               </p>
 
-              {/* Features */}
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xl font-bold">12h+</p>
 
-              <div className="mt-6 space-y-3 xl:mt-8 xl:space-y-4">
-
-                <BrandFeature text="Track your study sessions" />
-
-                <BrandFeature text="Manage your daily targets" />
-
-                <BrandFeature text="Build good study habits" />
-
-                <BrandFeature text="Understand your progress" />
-
-              </div>
-
-              {/* Quote */}
-
-              <div className="mt-7 max-w-md rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md xl:mt-10 xl:p-5">
-
-                <div className="flex items-start gap-3">
-
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                    <CheckCircle2
-                      size={16}
-                      className="text-indigo-100"
-                    />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-medium leading-5 text-white">
-                      "Small progress every day adds up."
-                    </p>
-
-                    <p className="mt-1 text-[11px] text-indigo-200 xl:text-xs">
-                      Stay consistent. Keep learning.
-                    </p>
-                  </div>
-
+                  <p className="mt-1 text-[11px] text-indigo-100">
+                    Daily study goal
+                  </p>
                 </div>
 
-              </div>
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
+                  <p className="text-xl font-bold">100%</p>
 
+                  <p className="mt-1 text-[11px] text-indigo-100">
+                    Your progress
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Copyright */}
-
-            <p className="text-[11px] text-indigo-200 xl:text-xs">
-              © {new Date().getFullYear()} StudyFlow. All
-              rights reserved.
-            </p>
-
+            {/* Bottom */}
+            <div className="relative z-10 text-xs text-indigo-100">
+              Your progress. Your journey.
+            </div>
           </div>
-        </div>
 
-        {/* =========================================
-            RIGHT REGISTER SECTION
-        ========================================= */}
+          {/* =================================================
+              RIGHT REGISTER SECTION
+          ================================================= */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-        <div className="flex min-h-[720px] w-full items-center justify-center px-5 py-8 sm:px-8 sm:py-10 lg:w-7/12 lg:px-10 xl:w-1/2 xl:px-12 2xl:px-16">
-
-          <div className="w-full max-w-md">
-
-            {/* MOBILE / TABLET LOGO */}
-
-            <div className="mb-7 flex justify-center lg:hidden sm:mb-8">
-
-              <div className="flex items-center gap-3">
-
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm sm:h-11 sm:w-11">
-                  <BookOpen size={21} />
+            {/* Mobile Logo */}
+            <div className="flex shrink-0 items-center justify-center pt-3 lg:hidden">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white">
+                  <BookOpen size={18} />
                 </div>
 
                 <div>
-                  <h1 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">
+                  <h1 className="text-base font-bold text-slate-900">
                     StudyFlow
                   </h1>
 
-                  <p className="text-[11px] text-slate-400 sm:text-xs">
+                  <p className="text-[9px] font-medium text-slate-400">
                     Study Dashboard
                   </p>
                 </div>
-
               </div>
-
             </div>
 
-            {/* HEADING */}
+            {/* Form Container */}
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-3 sm:px-7 sm:py-4 lg:px-10 xl:px-12">
+              <div className="w-full max-w-lg">
 
-            <div className="mb-6 sm:mb-8">
-
-              <p className="mb-1.5 text-xs font-semibold text-indigo-600 sm:mb-2 sm:text-sm">
-                Get started
-              </p>
-
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Create your account
-              </h2>
-
-              <p className="mt-2 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">
-                Start building better study habits today.
-              </p>
-
-            </div>
-
-            {/* GENERAL ERROR */}
-
-            {errors.general && (
-              <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs text-rose-600 sm:mb-5 sm:px-4 sm:text-sm">
-                {errors.general}
-              </div>
-            )}
-
-            {/* SUCCESS */}
-
-            {successMessage && (
-              <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs text-emerald-600 sm:mb-5 sm:px-4 sm:text-sm">
-
-                <CheckCircle2 size={16} />
-
-                <span>{successMessage}</span>
-
-              </div>
-            )}
-
-            {/* FORM */}
-
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4 sm:space-y-5"
-            >
-
-              {/* =========================================
-                  FULL NAME
-              ========================================= */}
-
-              <div>
-
-                <label
-                  htmlFor="fullName"
-                  className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
-                >
-                  Full Name
-                </label>
-
-                <div className="relative">
-
-                  <User
-                    size={17}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-
-                  <input
-                    id="fullName"
-                    name="fullName"
-                    type="text"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    autoComplete="name"
-                    className={getInputClass("fullName")}
-                  />
-
-                </div>
-
-                {errors.fullName && (
-                  <p className="mt-1.5 text-[11px] text-rose-500 sm:text-xs">
-                    {errors.fullName}
-                  </p>
-                )}
-
-              </div>
-
-              {/* =========================================
-                  EMAIL
-              ========================================= */}
-
-              <div>
-
-                <label
-                  htmlFor="email"
-                  className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
-                >
-                  Email Address
-                </label>
-
-                <div className="relative">
-
-                  <Mail
-                    size={17}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="you@example.com"
-                    autoComplete="email"
-                    className={getInputClass("email")}
-                  />
-
-                </div>
-
-                {errors.email && (
-                  <p className="mt-1.5 text-[11px] text-rose-500 sm:text-xs">
-                    {errors.email}
-                  </p>
-                )}
-
-              </div>
-
-              {/* =========================================
-                  PASSWORD
-              ========================================= */}
-
-              <div>
-
-                <label
-                  htmlFor="password"
-                  className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
-                >
-                  Password
-                </label>
-
-                <div className="relative">
-
-                  <LockKeyhole
-                    size={17}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-
-                  <input
-                    id="password"
-                    name="password"
-                    type={
-                      showPassword ? "text" : "password"
-                    }
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Create a password"
-                    autoComplete="new-password"
-                    className={`${getInputClass(
-                      "password"
-                    )} pr-11`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowPassword((prev) => !prev)
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
-                    aria-label={
-                      showPassword
-                        ? "Hide password"
-                        : "Show password"
-                    }
-                  >
-                    {showPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
-
-                </div>
-
-                {errors.password && (
-                  <p className="mt-1.5 text-[11px] text-rose-500 sm:text-xs">
-                    {errors.password}
-                  </p>
-                )}
-
-                {/* Password Strength */}
-
-                {password.length > 0 && (
-                  <div className="mt-2.5 sm:mt-3">
-
-                    <div className="mb-1.5 flex items-center justify-between">
-
-                      <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
-                        Password strength
-                      </span>
-
-                      <span
-                        className={`text-[10px] font-semibold sm:text-[11px] ${
-                          passwordStrength === 3
-                            ? "text-emerald-500"
-                            : passwordStrength === 2
-                            ? "text-orange-500"
-                            : "text-rose-500"
-                        }`}
-                      >
-                        {passwordStrength === 3
-                          ? "Strong"
-                          : passwordStrength === 2
-                          ? "Medium"
-                          : "Weak"}
-                      </span>
-
-                    </div>
-
-                    <div className="flex gap-1">
-
-                      {[1, 2, 3].map((item) => (
-                        <div
-                          key={item}
-                          className={`h-1 flex-1 rounded-full transition ${
-                            passwordStrength >= item
-                              ? passwordStrength === 3
-                                ? "bg-emerald-500"
-                                : passwordStrength === 2
-                                ? "bg-orange-400"
-                                : "bg-rose-400"
-                              : "bg-slate-200"
-                          }`}
-                        />
-                      ))}
-
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
-
-                      <PasswordRequirement
-                        checked={passwordChecks.length}
-                        text="8+ characters"
-                      />
-
-                      <PasswordRequirement
-                        checked={passwordChecks.number}
-                        text="One number"
-                      />
-
-                      <PasswordRequirement
-                        checked={passwordChecks.uppercase}
-                        text="One uppercase"
-                      />
-
-                    </div>
-
+                {/* Heading */}
+                <div className="mb-3 text-center sm:mb-4 lg:text-left">
+                  <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600 lg:mx-0">
+                    <User size={16} />
                   </div>
-                )}
 
-              </div>
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                    Create your account
+                  </h2>
 
-              {/* =========================================
-                  CONFIRM PASSWORD
-              ========================================= */}
-
-              <div>
-
-                <label
-                  htmlFor="confirmPassword"
-                  className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
-                >
-                  Confirm Password
-                </label>
-
-                <div className="relative">
-
-                  <LockKeyhole
-                    size={17}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  />
-
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={
-                      showConfirmPassword
-                        ? "text"
-                        : "password"
-                    }
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm your password"
-                    autoComplete="new-password"
-                    className={`${getInputClass(
-                      "confirmPassword"
-                    )} pr-11`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowConfirmPassword(
-                        (prev) => !prev
-                      )
-                    }
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
-                    aria-label={
-                      showConfirmPassword
-                        ? "Hide confirm password"
-                        : "Show confirm password"
-                    }
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
-
+                  <p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">
+                    Start tracking your study journey today.
+                  </p>
                 </div>
 
-                {errors.confirmPassword && (
-                  <p className="mt-1.5 text-[11px] text-rose-500 sm:text-xs">
-                    {errors.confirmPassword}
-                  </p>
-                )}
-
-              </div>
-
-              {/* =========================================
-                  TERMS
-              ========================================= */}
-
-              <div>
-
-                <label className="flex cursor-pointer items-start gap-2.5">
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAgreeTerms((prev) => !prev)
-                    }
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
-                      agreeTerms
-                        ? "border-indigo-600 bg-indigo-600 text-white"
-                        : errors.terms
-                        ? "border-rose-400 bg-white"
-                        : "border-slate-300 bg-white"
-                    }`}
-                    aria-label="Accept terms"
-                  >
-                    {agreeTerms && <Check size={12} />}
-                  </button>
-
-                  <span className="text-[11px] leading-5 text-slate-500 sm:text-xs">
-
-                    I agree to the{" "}
-
-                    <button
-                      type="button"
-                      className="font-semibold text-indigo-600 hover:text-indigo-700"
-                    >
-                      Terms of Service
-                    </button>{" "}
-
-                    and{" "}
-
-                    <button
-                      type="button"
-                      className="font-semibold text-indigo-600 hover:text-indigo-700"
-                    >
-                      Privacy Policy
-                    </button>
-
-                    .
-
-                  </span>
-
-                </label>
-
-                {errors.terms && (
-                  <p className="mt-1.5 text-[11px] text-rose-500 sm:text-xs">
-                    {errors.terms}
-                  </p>
-                )}
-
-              </div>
-
-              {/* =========================================
-                  CREATE ACCOUNT
-              ========================================= */}
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 hover:shadow-md sm:py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-
-                {isLoading ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Creating account...
-                  </>
-                ) : (
-                  <>
-                    Create Account
-
-                    <ArrowRight
-                      size={17}
-                      className="transition-transform duration-200 group-hover:translate-x-0.5"
-                    />
-                  </>
-                )}
-
-              </button>
-
-              {/* =========================================
-                  SECURITY
-              ========================================= */}
-
-              <div className="flex items-center justify-center gap-1.5 pt-0.5 text-[10px] text-slate-400 sm:gap-2 sm:pt-1 sm:text-xs">
-
-                <ShieldCheck size={14} />
-
-                <span>
-                  Your information is kept secure.
-                </span>
-
-              </div>
-
-            </form>
-
-            {/* =========================================
-                LOGIN
-            ========================================= */}
-
-            <div className="mt-6 text-center sm:mt-7">
-
-              <p className="text-xs text-slate-500 sm:text-sm">
-
-                Already have an account?{" "}
-
-                <Link
-                  to="/login"
-                  className="font-semibold text-indigo-600 transition hover:text-indigo-700"
+                {/* =================================================
+                    FORM
+                ================================================= */}
+                <form
+                  onSubmit={handleSubmit}
+                  className="space-y-2.5 sm:space-y-3"
                 >
-                  Sign in
-                </Link>
 
-              </p>
+                  {/* =========================================
+                      FULL NAME
+                  ========================================= */}
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      Full Name
+                    </label>
 
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.name
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <User
+                        size={15}
+                        className="shrink-0 text-slate-400"
+                      />
+
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleChange}
+                        placeholder="Your name"
+                        className="ml-2 min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {errors.name && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      EMAIL
+                  ========================================= */}
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      Email
+                    </label>
+
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.email
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <Mail
+                        size={15}
+                        className="shrink-0 text-slate-400"
+                      />
+
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        placeholder="you@example.com"
+                        className="ml-2 min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {errors.email && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      PHONE
+                  ========================================= */}
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      Phone
+                    </label>
+
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.phone
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <Phone
+                        size={15}
+                        className="shrink-0 text-slate-400"
+                      />
+
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        placeholder="10-digit number"
+                        maxLength={10}
+                        className="ml-2 min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+                    </div>
+
+                    {errors.phone && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      PASSWORD
+                  ========================================= */}
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      Password
+                    </label>
+
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.password
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <Lock
+                        size={15}
+                        className="shrink-0 text-slate-400"
+                      />
+
+                      <input
+                        type={
+                          showPassword
+                            ? "text"
+                            : "password"
+                        }
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Create password"
+                        className="ml-2 min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowPassword((prev) => !prev)
+                        }
+                        className="ml-1 text-slate-400 hover:text-slate-600"
+                        aria-label={
+                          showPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff size={15} />
+                        ) : (
+                          <Eye size={15} />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Password Strength */}
+                    {formData.password && (
+                      <div className="mt-1">
+                        <div className="flex h-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className={`${passwordStrength.width} rounded-full bg-indigo-500 transition-all duration-300`}
+                          />
+                        </div>
+
+                        <p className="mt-0.5 text-[9px] text-slate-400">
+                          Strength:{" "}
+                          <span className="font-semibold text-slate-500">
+                            {passwordStrength.label}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+
+                    {errors.password && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.password}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      CONFIRM PASSWORD
+                  ========================================= */}
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      Confirm Password
+                    </label>
+
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.confirmPassword
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <Lock
+                        size={15}
+                        className="shrink-0 text-slate-400"
+                      />
+
+                      <input
+                        type={
+                          showConfirmPassword
+                            ? "text"
+                            : "password"
+                        }
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Confirm password"
+                        className="ml-2 min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword(
+                            (prev) => !prev
+                          )
+                        }
+                        className="ml-1 text-slate-400 hover:text-slate-600"
+                        aria-label={
+                          showConfirmPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff size={15} />
+                        ) : (
+                          <Eye size={15} />
+                        )}
+                      </button>
+                    </div>
+
+                    {errors.confirmPassword && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.confirmPassword}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      TERMS
+                  ========================================= */}
+                  <div>
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        name="agree"
+                        checked={formData.agree}
+                        onChange={handleChange}
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+
+                      <span className="text-[10px] leading-4 text-slate-500 sm:text-[11px]">
+                        I agree to the{" "}
+                        <button
+                          type="button"
+                          className="font-semibold text-indigo-600 hover:text-indigo-700"
+                        >
+                          Terms
+                        </button>{" "}
+                        and{" "}
+                        <button
+                          type="button"
+                          className="font-semibold text-indigo-600 hover:text-indigo-700"
+                        >
+                          Privacy Policy
+                        </button>
+                        .
+                      </span>
+                    </label>
+
+                    {errors.agree && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.agree}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
+                      CREATE ACCOUNT
+                  ========================================= */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-xs font-semibold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-70 sm:h-11 sm:text-sm"
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+
+                        <span>
+                          Creating account...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Create Account</span>
+                        <ArrowRight size={15} />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {/* Login */}
+                <p className="mt-3 text-center text-[10px] text-slate-500 sm:mt-4 sm:text-xs">
+                  Already have an account?{" "}
+                  <Link
+                    to="/login"
+                    className="font-semibold text-indigo-600 transition hover:text-indigo-700"
+                  >
+                    Sign in
+                  </Link>
+                </p>
+              </div>
             </div>
 
+            {/* Desktop Footer */}
+            <div className="hidden shrink-0 pb-3 text-center lg:block">
+              <p className="text-[10px] text-slate-400">
+                © 2026 StudyFlow · Your progress. Your journey.
+              </p>
+            </div>
           </div>
-
         </div>
-
       </div>
-    </div>
-  );
-};
-
-// ==========================================
-// BRAND FEATURE
-// ==========================================
-
-const BrandFeature = ({ text }) => {
-  return (
-    <div className="flex items-center gap-3">
-
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white xl:h-7 xl:w-7">
-        <Check size={14} />
-      </div>
-
-      <span className="text-xs text-indigo-50 xl:text-sm">
-        {text}
-      </span>
-
-    </div>
-  );
-};
-
-// ==========================================
-// PASSWORD REQUIREMENT
-// ==========================================
-
-const PasswordRequirement = ({ checked, text }) => {
-  return (
-    <div className="flex min-w-0 items-center gap-1.5">
-
-      <div
-        className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
-          checked
-            ? "bg-emerald-100 text-emerald-600"
-            : "bg-slate-100 text-slate-400"
-        }`}
-      >
-        {checked && <Check size={9} />}
-      </div>
-
-      <span
-        className={`truncate text-[10px] ${
-          checked
-            ? "text-slate-500"
-            : "text-slate-400"
-        }`}
-      >
-        {text}
-      </span>
-
     </div>
   );
 };
 
 export default Register;
+
