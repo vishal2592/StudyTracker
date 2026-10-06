@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -10,7 +11,6 @@ import {
   ChevronRight,
   Circle,
   Clock3,
-  Flag,
   ListChecks,
   Pencil,
   Plus,
@@ -81,7 +81,8 @@ const DailyTargets = () => {
       duration: "1 hour",
       priority: "Low",
       date: "2026-10-06",
-      description: "Revise previous year questions and mark difficult topics.",
+      description:
+        "Revise previous year questions and mark difficult topics.",
       completed: false,
       completedAt: null,
     },
@@ -92,7 +93,8 @@ const DailyTargets = () => {
       duration: "2 hours",
       priority: "High",
       date: "2026-10-07",
-      description: "Practice integration formulas and previous questions.",
+      description:
+        "Practice integration formulas and previous questions.",
       completed: false,
       completedAt: null,
     },
@@ -123,15 +125,12 @@ const DailyTargets = () => {
 
   // =====================================================
   // FORM STATE
+  // ONLY TITLE + PLANNED DURATION
   // =====================================================
 
   const initialForm = {
     title: "",
-    subject: "Biology",
     duration: "1 hour",
-    priority: "Medium",
-    date: getTodayKey(),
-    description: "",
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -233,7 +232,6 @@ const DailyTargets = () => {
 
     setFormData({
       ...initialForm,
-      date: selectedDate,
     });
 
     setShowModal(true);
@@ -248,11 +246,7 @@ const DailyTargets = () => {
 
     setFormData({
       title: target.title,
-      subject: target.subject,
       duration: target.duration,
-      priority: target.priority,
-      date: target.date,
-      description: target.description || "",
     });
 
     setShowModal(true);
@@ -288,37 +282,46 @@ const DailyTargets = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.title.trim()) {
+    const trimmedTitle = formData.title.trim();
+
+    if (!trimmedTitle) {
       return;
     }
 
     if (editingTargetId) {
+      // =================================================
       // UPDATE TARGET
+      // =================================================
+
       setTargets((prev) =>
         prev.map((target) =>
           target.id === editingTargetId
             ? {
                 ...target,
-                title: formData.title.trim(),
-                subject: formData.subject,
+                title: trimmedTitle,
                 duration: formData.duration,
-                priority: formData.priority,
-                date: formData.date,
-                description: formData.description.trim(),
               }
             : target
         )
       );
     } else {
+      // =================================================
       // ADD TARGET
+      // =================================================
+
       const newTarget = {
         id: Date.now(),
-        title: formData.title.trim(),
-        subject: formData.subject,
+
+        title: trimmedTitle,
+
         duration: formData.duration,
-        priority: formData.priority,
-        date: formData.date,
-        description: formData.description.trim(),
+
+        // Existing fields are kept for current UI/data structure.
+        subject: "Other",
+        priority: "Medium",
+        date: selectedDate,
+        description: "",
+
         completed: false,
         completedAt: null,
       };
@@ -344,7 +347,9 @@ const DailyTargets = () => {
 
     if (!confirmed) return;
 
-    setTargets((prev) => prev.filter((target) => target.id !== id));
+    setTargets((prev) =>
+      prev.filter((target) => target.id !== id)
+    );
   };
 
   // =====================================================
@@ -370,34 +375,6 @@ const DailyTargets = () => {
         };
       })
     );
-  };
-
-  // =====================================================
-  // PRIORITY STYLES
-  // =====================================================
-
-  const getPriorityStyle = (priority) => {
-    if (priority === "High") {
-      return {
-        badge:
-          "bg-red-50 text-red-600 border-red-100",
-        icon: "text-red-500",
-      };
-    }
-
-    if (priority === "Medium") {
-      return {
-        badge:
-          "bg-orange-50 text-orange-600 border-orange-100",
-        icon: "text-orange-500",
-      };
-    }
-
-    return {
-      badge:
-        "bg-emerald-50 text-emerald-600 border-emerald-100",
-      icon: "text-emerald-500",
-    };
   };
 
   // =====================================================
@@ -443,8 +420,8 @@ const DailyTargets = () => {
             </h1>
 
             <p className="mt-1 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Plan your daily study goals, track your progress and stay
-              consistent with your preparation.
+              Plan your daily study goals, track your progress and
+              stay consistent with your preparation.
             </p>
           </div>
 
@@ -466,6 +443,7 @@ const DailyTargets = () => {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div className="flex items-center gap-2">
+
               <button
                 type="button"
                 onClick={() => changeDate(-1)}
@@ -476,12 +454,14 @@ const DailyTargets = () => {
 
               <div className="min-w-0 flex-1 px-2 text-center sm:min-w-[260px]">
                 <div className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-900">
+
                   <CalendarDays
                     size={17}
                     className="text-purple-500"
                   />
 
                   <span>{formatDate(selectedDate)}</span>
+
                 </div>
               </div>
 
@@ -492,9 +472,11 @@ const DailyTargets = () => {
               >
                 <ChevronRight size={19} />
               </button>
+
             </div>
 
             <div className="flex items-center gap-2">
+
               <button
                 type="button"
                 onClick={goToToday}
@@ -510,7 +492,9 @@ const DailyTargets = () => {
               <div className="hidden rounded-xl bg-slate-50 px-4 py-2 text-sm text-slate-500 sm:block">
                 {formatShortDate(selectedDate)}
               </div>
+
             </div>
+
           </div>
         </div>
 
@@ -521,8 +505,11 @@ const DailyTargets = () => {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
           {/* Total */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
                 <p className="text-sm font-medium text-slate-500">
                   Total Targets
@@ -540,12 +527,17 @@ const DailyTargets = () => {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
                 <ListChecks size={21} />
               </div>
+
             </div>
+
           </div>
 
           {/* Completed */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
                 <p className="text-sm font-medium text-slate-500">
                   Completed
@@ -563,12 +555,17 @@ const DailyTargets = () => {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                 <CheckCircle2 size={21} />
               </div>
+
             </div>
+
           </div>
 
           {/* Pending */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
                 <p className="text-sm font-medium text-slate-500">
                   Pending
@@ -586,12 +583,17 @@ const DailyTargets = () => {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
                 <AlertCircle size={21} />
               </div>
+
             </div>
+
           </div>
 
           {/* Progress */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
                 <p className="text-sm font-medium text-slate-500">
                   Daily Progress
@@ -609,8 +611,11 @@ const DailyTargets = () => {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                 <CheckCheck size={21} />
               </div>
+
             </div>
+
           </div>
+
         </div>
 
         {/* =====================================================
@@ -618,7 +623,9 @@ const DailyTargets = () => {
         ===================================================== */}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
           <div className="mb-3 flex items-center justify-between">
+
             <div>
               <h2 className="font-semibold text-slate-900">
                 Today's Progress
@@ -632,25 +639,30 @@ const DailyTargets = () => {
             <span className="text-sm font-bold text-purple-600">
               {progressPercentage}%
             </span>
+
           </div>
 
           <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+
             <div
               className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
               style={{
                 width: `${progressPercentage}%`,
               }}
             />
+
           </div>
+
         </div>
 
         {/* =====================================================
-            TARGET LIST HEADER
+            TARGET LIST
         ===================================================== */}
 
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
           <div className="border-b border-slate-100 p-5">
+
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
               <div>
@@ -667,7 +679,9 @@ const DailyTargets = () => {
               </div>
 
               {/* Filters */}
+
               <div className="flex rounded-xl bg-slate-100 p-1">
+
                 <button
                   type="button"
                   onClick={() => setStatusFilter("all")}
@@ -703,8 +717,11 @@ const DailyTargets = () => {
                 >
                   Completed
                 </button>
+
               </div>
+
             </div>
+
           </div>
 
           {/* =====================================================
@@ -715,6 +732,7 @@ const DailyTargets = () => {
 
             {filteredTargets.length === 0 ? (
               <div className="px-5 py-16 text-center">
+
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                   <Target size={28} />
                 </div>
@@ -724,8 +742,8 @@ const DailyTargets = () => {
                 </h3>
 
                 <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                  You don't have any targets matching this filter for the
-                  selected date.
+                  You don't have any targets matching this filter
+                  for the selected date.
                 </p>
 
                 <button
@@ -736,24 +754,30 @@ const DailyTargets = () => {
                   <Plus size={17} />
                   Add Target
                 </button>
+
               </div>
             ) : (
               filteredTargets.map((target) => {
-                const priorityStyle = getPriorityStyle(target.priority);
 
                 return (
                   <div
                     key={target.id}
                     className={`p-5 transition hover:bg-slate-50/70 ${
-                      target.completed ? "bg-emerald-50/20" : ""
+                      target.completed
+                        ? "bg-emerald-50/20"
+                        : ""
                     }`}
                   >
+
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
 
                       {/* Checkbox */}
+
                       <button
                         type="button"
-                        onClick={() => handleToggleTarget(target.id)}
+                        onClick={() =>
+                          handleToggleTarget(target.id)
+                        }
                         className="mt-1 shrink-0"
                         aria-label={
                           target.completed
@@ -775,11 +799,13 @@ const DailyTargets = () => {
                       </button>
 
                       {/* Content */}
+
                       <div className="min-w-0 flex-1">
 
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 
                           <div className="min-w-0">
+
                             <h3
                               className={`text-base font-semibold sm:text-lg ${
                                 target.completed
@@ -790,25 +816,17 @@ const DailyTargets = () => {
                               {target.title}
                             </h3>
 
-                            {target.description && (
-                              <p
-                                className={`mt-1 max-w-3xl text-sm leading-6 ${
-                                  target.completed
-                                    ? "text-slate-400"
-                                    : "text-slate-500"
-                                }`}
-                              >
-                                {target.description}
-                              </p>
-                            )}
                           </div>
 
                           {/* Actions */}
+
                           <div className="flex shrink-0 items-center gap-1">
 
                             <button
                               type="button"
-                              onClick={() => handleEditTarget(target)}
+                              onClick={() =>
+                                handleEditTarget(target)
+                              }
                               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
                               title="Edit target"
                             >
@@ -817,16 +835,21 @@ const DailyTargets = () => {
 
                             <button
                               type="button"
-                              onClick={() => handleDeleteTarget(target.id)}
+                              onClick={() =>
+                                handleDeleteTarget(target.id)
+                              }
                               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                               title="Delete target"
                             >
                               <Trash2 size={17} />
                             </button>
+
                           </div>
+
                         </div>
 
                         {/* Meta */}
+
                         <div className="mt-4 flex flex-wrap items-center gap-2">
 
                           <span
@@ -842,30 +865,28 @@ const DailyTargets = () => {
                             {target.duration}
                           </span>
 
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${priorityStyle.badge}`}
-                          >
-                            <Flag
-                              size={13}
-                              className={priorityStyle.icon}
-                            />
-                            {target.priority}
-                          </span>
+                          {target.completed &&
+                            target.completedAt && (
+                              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+                                <CheckCircle2 size={13} />
+                                Completed at{" "}
+                                {target.completedAt}
+                              </span>
+                            )}
 
-                          {target.completed && target.completedAt && (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
-                              <CheckCircle2 size={13} />
-                              Completed at {target.completedAt}
-                            </span>
-                          )}
                         </div>
+
                       </div>
+
                     </div>
+
                   </div>
                 );
               })
             )}
+
           </div>
+
         </div>
 
         {/* =====================================================
@@ -875,7 +896,9 @@ const DailyTargets = () => {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
           <div className="rounded-2xl border border-purple-100 bg-purple-50 p-5">
+
             <div className="flex items-start gap-3">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-purple-600 shadow-sm">
                 <BookOpen size={19} />
               </div>
@@ -886,15 +909,19 @@ const DailyTargets = () => {
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-purple-700/80">
-                  Break large subjects into smaller daily targets so they are
-                  easier to complete.
+                  Break large subjects into smaller daily targets
+                  so they are easier to complete.
                 </p>
               </div>
+
             </div>
+
           </div>
 
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5">
+
             <div className="flex items-start gap-3">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm">
                 <CheckCircle2 size={19} />
               </div>
@@ -905,15 +932,19 @@ const DailyTargets = () => {
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-emerald-700/80">
-                  Completing your daily targets contributes to your overall
-                  positive study score.
+                  Completing your daily targets contributes to
+                  your overall positive study score.
                 </p>
               </div>
+
             </div>
+
           </div>
 
           <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
+
             <div className="flex items-start gap-3">
+
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-orange-600 shadow-sm">
                 <Clock3 size={19} />
               </div>
@@ -924,68 +955,86 @@ const DailyTargets = () => {
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-orange-700/80">
-                  Keep your targets realistic and focus on completing them
-                  consistently every day.
+                  Keep your targets realistic and focus on
+                  completing them consistently every day.
                 </p>
               </div>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
 
       {/* =====================================================
           ADD / EDIT MODAL
+          ONLY:
+          1. Target Title
+          2. Planned Duration
       ===================================================== */}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
 
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
 
             {/* Modal Header */}
+
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
 
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
-                    <Target size={19} />
-                  </div>
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
+                  <Target size={19} />
+                </div>
+
+                <div>
 
                   <h2 className="text-lg font-bold text-slate-900">
                     {editingTargetId
                       ? "Update Target"
                       : "Add New Target"}
                   </h2>
+
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Set your study target.
+                  </p>
+
                 </div>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  {editingTargetId
-                    ? "Update your study target details."
-                    : "Create a new target for your study plan."}
-                </p>
               </div>
 
               <button
                 type="button"
                 onClick={handleCloseModal}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
               >
                 <X size={20} />
               </button>
+
             </div>
 
             {/* Modal Body */}
+
             <form
               onSubmit={handleSubmit}
-              className="max-h-[calc(92vh-145px)] overflow-y-auto p-5 sm:p-6"
+              className="p-5 sm:p-6"
             >
+
               <div className="space-y-5">
 
-                {/* Title */}
+                {/* Target Title */}
+
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
                     Target Title
-                    <span className="ml-1 text-red-500">*</span>
+                    <span className="ml-1 text-red-500">
+                      *
+                    </span>
                   </label>
 
                   <input
@@ -995,165 +1044,64 @@ const DailyTargets = () => {
                     onChange={handleInputChange}
                     placeholder="e.g. Physics - Current Electricity"
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
+                    autoFocus
                     required
                   />
+
                 </div>
 
-                {/* Subject + Duration */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Planned Duration */}
 
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Subject
-                    </label>
-
-                    <select
-                      name="subject"
-                      value={formData.subject}
-                      onChange={handleInputChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                    >
-                      <option value="Biology">Biology</option>
-                      <option value="Physics">Physics</option>
-                      <option value="Chemistry">Chemistry</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Practice">Practice</option>
-                      <option value="Revision">Revision</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Planned Duration
-                    </label>
-
-                    <select
-                      name="duration"
-                      value={formData.duration}
-                      onChange={handleInputChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                    >
-                      <option value="30 minutes">30 minutes</option>
-                      <option value="1 hour">1 hour</option>
-                      <option value="1.5 hours">1.5 hours</option>
-                      <option value="2 hours">2 hours</option>
-                      <option value="2.5 hours">2.5 hours</option>
-                      <option value="3 hours">3 hours</option>
-                      <option value="4 hours">4 hours</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Priority + Date */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Priority
-                    </label>
-
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleInputChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                    >
-                      <option value="High">High Priority</option>
-                      <option value="Medium">Medium Priority</option>
-                      <option value="Low">Low Priority</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Target Date
-                    </label>
-
-                    <div className="relative">
-                      <CalendarDays
-                        size={17}
-                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                      />
-
-                      <input
-                        type="date"
-                        name="date"
-                        value={formData.date}
-                        onChange={handleInputChange}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description */}
                 <div>
+
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Description
-                    <span className="ml-1 text-xs font-normal text-slate-400">
-                      Optional
+                    Planned Duration
+                    <span className="ml-1 text-red-500">
+                      *
                     </span>
                   </label>
 
-                  <textarea
-                    name="description"
-                    value={formData.description}
+                  <select
+                    name="duration"
+                    value={formData.duration}
                     onChange={handleInputChange}
-                    rows={4}
-                    placeholder="Add some details about what you want to complete..."
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                  />
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
+                  >
+                    <option value="30 minutes">
+                      30 minutes
+                    </option>
+
+                    <option value="1 hour">
+                      1 hour
+                    </option>
+
+                    <option value="1.5 hours">
+                      1.5 hours
+                    </option>
+
+                    <option value="2 hours">
+                      2 hours
+                    </option>
+
+                    <option value="2.5 hours">
+                      2.5 hours
+                    </option>
+
+                    <option value="3 hours">
+                      3 hours
+                    </option>
+
+                    <option value="4 hours">
+                      4 hours
+                    </option>
+                  </select>
+
                 </div>
 
-                {/* Preview */}
-                <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-purple-600">
-                    Target Preview
-                  </p>
-
-                  <div className="rounded-xl border border-white bg-white p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 text-slate-300">
-                        <Check size={15} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-semibold text-slate-900">
-                          {formData.title || "Your target title"}
-                        </h4>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-md px-2 py-1 text-[11px] font-semibold ${getSubjectStyle(
-                              formData.subject
-                            )}`}
-                          >
-                            {formData.subject}
-                          </span>
-
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                            {formData.duration}
-                          </span>
-
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                            {formData.priority}
-                          </span>
-
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                            {formData.date
-                              ? formatShortDate(formData.date)
-                              : "Select date"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Modal Footer */}
+
               <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
 
                 <button
@@ -1181,11 +1129,16 @@ const DailyTargets = () => {
                     </>
                   )}
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
       )}
+
     </div>
   );
 };

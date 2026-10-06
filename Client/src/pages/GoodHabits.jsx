@@ -176,17 +176,12 @@ const GoodHabits = () => {
 
   // =====================================================
   // FORM
+  // Only Habit Name + Reminder Time
   // =====================================================
 
   const initialForm = {
     name: "",
-    category: "Productivity",
-    description: "",
-    frequency: "Daily",
     reminder: "08:00",
-    startDate: todayKey,
-    icon: "sparkles",
-    color: "purple",
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -285,7 +280,7 @@ const GoodHabits = () => {
 
     setFormData({
       ...initialForm,
-      startDate: selectedDate,
+      reminder: "08:00",
     });
 
     setShowModal(true);
@@ -300,13 +295,7 @@ const GoodHabits = () => {
 
     setFormData({
       name: habit.name,
-      category: habit.category,
-      description: habit.description || "",
-      frequency: habit.frequency,
-      reminder: habit.reminder,
-      startDate: habit.startDate,
-      icon: habit.icon || "sparkles",
-      color: habit.color || "purple",
+      reminder: habit.reminder || "08:00",
     });
 
     setShowModal(true);
@@ -342,7 +331,9 @@ const GoodHabits = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
+    const trimmedName = formData.name.trim();
+
+    if (!trimmedName) {
       return;
     }
 
@@ -352,14 +343,8 @@ const GoodHabits = () => {
           habit.id === editingHabitId
             ? {
                 ...habit,
-                name: formData.name.trim(),
-                category: formData.category,
-                description: formData.description.trim(),
-                frequency: formData.frequency,
+                name: trimmedName,
                 reminder: formData.reminder,
-                startDate: formData.startDate,
-                icon: formData.icon,
-                color: formData.color,
               }
             : habit
         )
@@ -367,16 +352,23 @@ const GoodHabits = () => {
     } else {
       const newHabit = {
         id: Date.now(),
-        name: formData.name.trim(),
-        category: formData.category,
-        description: formData.description.trim(),
-        frequency: formData.frequency,
+
+        name: trimmedName,
+
+        // Keep existing structure so the rest of the UI
+        // continues working without changes.
+        category: "Productivity",
+        description: "",
+        frequency: "Daily",
         reminder: formData.reminder,
-        startDate: formData.startDate,
+        startDate: selectedDate,
+
         streak: 0,
         completed: false,
-        icon: formData.icon,
-        color: formData.color,
+
+        icon: "sparkles",
+        color: "purple",
+
         completionHistory: {},
       };
 
@@ -551,7 +543,6 @@ const GoodHabits = () => {
         ===================================================== */}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
           <div>
             <div className="mb-2 flex items-center gap-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
@@ -589,7 +580,6 @@ const GoodHabits = () => {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -1195,12 +1185,13 @@ const GoodHabits = () => {
 
       {/* =====================================================
           ADD / EDIT HABIT MODAL
+          ONLY HABIT NAME + REMINDER TIME
       ===================================================== */}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
 
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -1221,8 +1212,8 @@ const GoodHabits = () => {
 
                 <p className="mt-1 text-xs text-slate-500">
                   {editingHabitId
-                    ? "Update your habit details."
-                    : "Create a small habit that you can maintain consistently."}
+                    ? "Update your habit name and reminder time."
+                    : "Create your habit and set a reminder time."}
                 </p>
               </div>
 
@@ -1238,7 +1229,7 @@ const GoodHabits = () => {
             {/* Form */}
             <form
               onSubmit={handleSubmit}
-              className="max-h-[calc(92vh-145px)] overflow-y-auto p-5 sm:p-6"
+              className="p-5 sm:p-6"
             >
               <div className="space-y-5">
 
@@ -1260,293 +1251,25 @@ const GoodHabits = () => {
                   />
                 </div>
 
-                {/* Category + Frequency */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Reminder Time */}
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">
+                    Reminder Time
+                  </label>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Category
-                    </label>
+                  <div className="relative">
+                    <Bell
+                      size={17}
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
 
-                    <select
-                      name="category"
-                      value={formData.category}
+                    <input
+                      type="time"
+                      name="reminder"
+                      value={formData.reminder}
                       onChange={handleInputChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                    >
-                      <option value="Health">
-                        Health
-                      </option>
-
-                      <option value="Fitness">
-                        Fitness
-                      </option>
-
-                      <option value="Productivity">
-                        Productivity
-                      </option>
-
-                      <option value="Lifestyle">
-                        Lifestyle
-                      </option>
-
-                      <option value="Study">
-                        Study
-                      </option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Frequency
-                    </label>
-
-                    <select
-                      name="frequency"
-                      value={formData.frequency}
-                      onChange={handleInputChange}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                    >
-                      <option value="Daily">
-                        Daily
-                      </option>
-
-                      <option value="Weekdays">
-                        Weekdays
-                      </option>
-
-                      <option value="Weekends">
-                        Weekends
-                      </option>
-
-                      <option value="Custom">
-                        Custom
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Reminder + Date */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Reminder Time
-                    </label>
-
-                    <div className="relative">
-                      <Bell
-                        size={17}
-                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                      />
-
-                      <input
-                        type="time"
-                        name="reminder"
-                        value={formData.reminder}
-                        onChange={handleInputChange}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-semibold text-slate-700">
-                      Start Date
-                    </label>
-
-                    <div className="relative">
-                      <CalendarDays
-                        size={17}
-                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                      />
-
-                      <input
-                        type="date"
-                        name="startDate"
-                        value={formData.startDate}
-                        onChange={handleInputChange}
-                        className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Icon */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Habit Icon
-                  </label>
-
-                  <div className="grid grid-cols-5 gap-2">
-
-                    {[
-                      {
-                        value: "sparkles",
-                        icon: <Sparkles size={18} />,
-                      },
-                      {
-                        value: "water",
-                        icon: <Droplets size={18} />,
-                      },
-                      {
-                        value: "fitness",
-                        icon: <Dumbbell size={18} />,
-                      },
-                      {
-                        value: "target",
-                        icon: <Target size={18} />,
-                      },
-                      {
-                        value: "heart",
-                        icon: <HeartPulse size={18} />,
-                      },
-                    ].map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            icon: item.value,
-                          }))
-                        }
-                        className={`flex h-11 items-center justify-center rounded-xl border transition ${
-                          formData.icon === item.value
-                            ? "border-purple-500 bg-purple-50 text-purple-600"
-                            : "border-slate-200 text-slate-400 hover:bg-slate-50"
-                        }`}
-                      >
-                        {item.icon}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Color */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Habit Color
-                  </label>
-
-                  <div className="flex gap-3">
-
-                    {[
-                      {
-                        value: "purple",
-                        className: "bg-purple-500",
-                      },
-                      {
-                        value: "blue",
-                        className: "bg-blue-500",
-                      },
-                      {
-                        value: "emerald",
-                        className: "bg-emerald-500",
-                      },
-                      {
-                        value: "orange",
-                        className: "bg-orange-500",
-                      },
-                      {
-                        value: "pink",
-                        className: "bg-pink-500",
-                      },
-                    ].map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            color: item.value,
-                          }))
-                        }
-                        className={`flex h-9 w-9 items-center justify-center rounded-full border-2 ${
-                          formData.color === item.value
-                            ? "border-slate-900"
-                            : "border-transparent"
-                        }`}
-                      >
-                        <span
-                          className={`h-6 w-6 rounded-full ${item.className}`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">
-                    Description
-                    <span className="ml-1 text-xs font-normal text-slate-400">
-                      Optional
-                    </span>
-                  </label>
-
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows={4}
-                    placeholder="Describe what you want to achieve with this habit..."
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
-                  />
-                </div>
-
-                {/* Preview */}
-                <div className="rounded-xl border border-purple-100 bg-purple-50/60 p-4">
-
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-purple-600">
-                    Habit Preview
-                  </p>
-
-                  <div className="rounded-xl border border-white bg-white p-4 shadow-sm">
-
-                    <div className="flex items-start gap-3">
-
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${getIconStyle(
-                          formData.color
-                        )}`}
-                      >
-                        {getHabitIcon(formData.icon, 19)}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-
-                        <h4 className="font-semibold text-slate-900">
-                          {formData.name || "Your habit name"}
-                        </h4>
-
-                        {formData.description && (
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {formData.description}
-                          </p>
-                        )}
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-
-                          <span
-                            className={`rounded-md px-2 py-1 text-[11px] font-semibold ${getCategoryStyle(
-                              formData.category
-                            )}`}
-                          >
-                            {formData.category}
-                          </span>
-
-                          <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                            {formData.frequency}
-                          </span>
-
-                          <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                            <Bell size={11} />
-                            {formData.reminder}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-700 outline-none transition focus:border-purple-500 focus:ring-4 focus:ring-purple-50"
+                    />
                   </div>
                 </div>
               </div>

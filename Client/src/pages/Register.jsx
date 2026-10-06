@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -16,20 +17,12 @@ import {
 const Register = () => {
   const navigate = useNavigate();
 
-  // =====================================================
-  // FORM STATE
-  // =====================================================
-
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
-
-  // =====================================================
-  // UI STATE
-  // =====================================================
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
@@ -41,9 +34,9 @@ const Register = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // =====================================================
-  // INPUT CHANGE
-  // =====================================================
+  // ==========================================
+  // HANDLE INPUT CHANGE
+  // ==========================================
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -70,9 +63,9 @@ const Register = () => {
     setSuccessMessage("");
   };
 
-  // =====================================================
-  // VALIDATION
-  // =====================================================
+  // ==========================================
+  // FORM VALIDATION
+  // ==========================================
 
   const validateForm = () => {
     const newErrors = {};
@@ -80,6 +73,7 @@ const Register = () => {
     const trimmedName = formData.fullName.trim();
     const trimmedEmail = formData.email.trim();
 
+    // Full Name
     if (!trimmedName) {
       newErrors.fullName = "Please enter your full name.";
     } else if (trimmedName.length < 3) {
@@ -87,6 +81,7 @@ const Register = () => {
         "Name must be at least 3 characters.";
     }
 
+    // Email
     if (!trimmedEmail) {
       newErrors.email = "Please enter your email.";
     } else if (
@@ -96,13 +91,16 @@ const Register = () => {
         "Please enter a valid email address.";
     }
 
+    // Password
     if (!formData.password) {
-      newErrors.password = "Please create a password.";
+      newErrors.password =
+        "Please create a password.";
     } else if (formData.password.length < 8) {
       newErrors.password =
         "Password must be at least 8 characters.";
     }
 
+    // Confirm Password
     if (!formData.confirmPassword) {
       newErrors.confirmPassword =
         "Please confirm your password.";
@@ -113,6 +111,7 @@ const Register = () => {
         "Passwords do not match.";
     }
 
+    // Terms
     if (!agreeTerms) {
       newErrors.terms =
         "Please accept the Terms & Privacy Policy.";
@@ -123,9 +122,9 @@ const Register = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // =====================================================
-  // REGISTER
-  // =====================================================
+  // ==========================================
+  // SUBMIT
+  // ==========================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -186,9 +185,9 @@ const Register = () => {
     }
   };
 
-  // =====================================================
+  // ==========================================
   // PASSWORD STRENGTH
-  // =====================================================
+  // ==========================================
 
   const password = formData.password;
 
@@ -201,9 +200,9 @@ const Register = () => {
   const passwordStrength =
     Object.values(passwordChecks).filter(Boolean).length;
 
-  // =====================================================
+  // ==========================================
   // INPUT CLASS
-  // =====================================================
+  // ==========================================
 
   const getInputClass = (fieldName) => {
     return `
@@ -221,23 +220,27 @@ const Register = () => {
     `;
   };
 
-  return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-slate-50">
-      <div className="flex min-h-screen w-full">
+  // ==========================================
+  // UI
+  // ==========================================
 
-        {/* =================================================
-            LEFT BRANDING SECTION
-            DESKTOP + LARGE TABLET
-        ================================================= */}
+  return (
+    <div className="flex min-h-screen w-full items-center justify-center overflow-x-hidden bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <div className="flex w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+
+        {/* =========================================
+            LEFT BRANDING
+        ========================================= */}
 
         <div className="relative hidden w-5/12 overflow-hidden bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-700 lg:flex xl:w-1/2">
-          {/* Decorative circles */}
+
+          {/* Background Circles */}
 
           <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/10 xl:h-72 xl:w-72" />
 
           <div className="absolute -bottom-32 -left-20 h-72 w-72 rounded-full bg-white/10 xl:h-80 xl:w-80" />
 
-          <div className="relative z-10 flex min-h-screen w-full flex-col justify-between p-8 xl:p-12 2xl:p-16">
+          <div className="relative z-10 flex min-h-[720px] w-full flex-col justify-between p-8 xl:p-10 2xl:p-12">
 
             {/* Logo */}
 
@@ -260,6 +263,7 @@ const Register = () => {
             {/* Main Content */}
 
             <div className="my-8 max-w-lg">
+
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-indigo-50 backdrop-blur-sm xl:mb-6 xl:px-3.5 xl:py-2 xl:text-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
 
@@ -281,6 +285,7 @@ const Register = () => {
               {/* Features */}
 
               <div className="mt-6 space-y-3 xl:mt-8 xl:space-y-4">
+
                 <BrandFeature text="Track your study sessions" />
 
                 <BrandFeature text="Manage your daily targets" />
@@ -288,12 +293,15 @@ const Register = () => {
                 <BrandFeature text="Build good study habits" />
 
                 <BrandFeature text="Understand your progress" />
+
               </div>
 
               {/* Quote */}
 
               <div className="mt-7 max-w-md rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md xl:mt-10 xl:p-5">
+
                 <div className="flex items-start gap-3">
+
                   <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
                     <CheckCircle2
                       size={16}
@@ -310,32 +318,37 @@ const Register = () => {
                       Stay consistent. Keep learning.
                     </p>
                   </div>
+
                 </div>
+
               </div>
+
             </div>
 
-            {/* Bottom */}
+            {/* Copyright */}
 
             <p className="text-[11px] text-indigo-200 xl:text-xs">
               © {new Date().getFullYear()} StudyFlow. All
               rights reserved.
             </p>
+
           </div>
         </div>
 
-        {/* =================================================
+        {/* =========================================
             RIGHT REGISTER SECTION
-        ================================================= */}
+        ========================================= */}
 
-        <div className="flex min-h-screen w-full items-center justify-center px-4 py-8 sm:px-6 sm:py-10 md:px-10 lg:w-7/12 lg:px-8 xl:w-1/2 xl:px-12 2xl:px-20">
+        <div className="flex min-h-[720px] w-full items-center justify-center px-5 py-8 sm:px-8 sm:py-10 lg:w-7/12 lg:px-10 xl:w-1/2 xl:px-12 2xl:px-16">
+
           <div className="w-full max-w-md">
 
-            {/* =================================================
-                MOBILE / TABLET LOGO
-            ================================================= */}
+            {/* MOBILE / TABLET LOGO */}
 
             <div className="mb-7 flex justify-center lg:hidden sm:mb-8">
+
               <div className="flex items-center gap-3">
+
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm sm:h-11 sm:w-11">
                   <BookOpen size={21} />
                 </div>
@@ -349,14 +362,15 @@ const Register = () => {
                     Study Dashboard
                   </p>
                 </div>
+
               </div>
+
             </div>
 
-            {/* =================================================
-                HEADING
-            ================================================= */}
+            {/* HEADING */}
 
             <div className="mb-6 sm:mb-8">
+
               <p className="mb-1.5 text-xs font-semibold text-indigo-600 sm:mb-2 sm:text-sm">
                 Get started
               </p>
@@ -368,11 +382,10 @@ const Register = () => {
               <p className="mt-2 text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6">
                 Start building better study habits today.
               </p>
+
             </div>
 
-            {/* =================================================
-                GENERAL ERROR
-            ================================================= */}
+            {/* GENERAL ERROR */}
 
             {errors.general && (
               <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs text-rose-600 sm:mb-5 sm:px-4 sm:text-sm">
@@ -380,29 +393,31 @@ const Register = () => {
               </div>
             )}
 
-            {/* =================================================
-                SUCCESS
-            ================================================= */}
+            {/* SUCCESS */}
 
             {successMessage && (
               <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs text-emerald-600 sm:mb-5 sm:px-4 sm:text-sm">
+
                 <CheckCircle2 size={16} />
 
                 <span>{successMessage}</span>
+
               </div>
             )}
 
-            {/* =================================================
-                FORM
-            ================================================= */}
+            {/* FORM */}
 
             <form
               onSubmit={handleSubmit}
               className="space-y-4 sm:space-y-5"
             >
-              {/* Full Name */}
+
+              {/* =========================================
+                  FULL NAME
+              ========================================= */}
 
               <div>
+
                 <label
                   htmlFor="fullName"
                   className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
@@ -411,6 +426,7 @@ const Register = () => {
                 </label>
 
                 <div className="relative">
+
                   <User
                     size={17}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -426,6 +442,7 @@ const Register = () => {
                     autoComplete="name"
                     className={getInputClass("fullName")}
                   />
+
                 </div>
 
                 {errors.fullName && (
@@ -433,11 +450,15 @@ const Register = () => {
                     {errors.fullName}
                   </p>
                 )}
+
               </div>
 
-              {/* Email */}
+              {/* =========================================
+                  EMAIL
+              ========================================= */}
 
               <div>
+
                 <label
                   htmlFor="email"
                   className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
@@ -446,6 +467,7 @@ const Register = () => {
                 </label>
 
                 <div className="relative">
+
                   <Mail
                     size={17}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -461,6 +483,7 @@ const Register = () => {
                     autoComplete="email"
                     className={getInputClass("email")}
                   />
+
                 </div>
 
                 {errors.email && (
@@ -468,11 +491,15 @@ const Register = () => {
                     {errors.email}
                   </p>
                 )}
+
               </div>
 
-              {/* Password */}
+              {/* =========================================
+                  PASSWORD
+              ========================================= */}
 
               <div>
+
                 <label
                   htmlFor="password"
                   className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
@@ -481,6 +508,7 @@ const Register = () => {
                 </label>
 
                 <div className="relative">
+
                   <LockKeyhole
                     size={17}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -519,6 +547,7 @@ const Register = () => {
                       <Eye size={18} />
                     )}
                   </button>
+
                 </div>
 
                 {errors.password && (
@@ -531,7 +560,9 @@ const Register = () => {
 
                 {password.length > 0 && (
                   <div className="mt-2.5 sm:mt-3">
+
                     <div className="mb-1.5 flex items-center justify-between">
+
                       <span className="text-[10px] font-medium text-slate-400 sm:text-[11px]">
                         Password strength
                       </span>
@@ -551,9 +582,11 @@ const Register = () => {
                           ? "Medium"
                           : "Weak"}
                       </span>
+
                     </div>
 
                     <div className="flex gap-1">
+
                       {[1, 2, 3].map((item) => (
                         <div
                           key={item}
@@ -568,9 +601,11 @@ const Register = () => {
                           }`}
                         />
                       ))}
+
                     </div>
 
                     <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
+
                       <PasswordRequirement
                         checked={passwordChecks.length}
                         text="8+ characters"
@@ -585,14 +620,20 @@ const Register = () => {
                         checked={passwordChecks.uppercase}
                         text="One uppercase"
                       />
+
                     </div>
+
                   </div>
                 )}
+
               </div>
 
-              {/* Confirm Password */}
+              {/* =========================================
+                  CONFIRM PASSWORD
+              ========================================= */}
 
               <div>
+
                 <label
                   htmlFor="confirmPassword"
                   className="mb-1.5 block text-xs font-semibold text-slate-700 sm:mb-2 sm:text-sm"
@@ -601,6 +642,7 @@ const Register = () => {
                 </label>
 
                 <div className="relative">
+
                   <LockKeyhole
                     size={17}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -643,6 +685,7 @@ const Register = () => {
                       <Eye size={18} />
                     )}
                   </button>
+
                 </div>
 
                 {errors.confirmPassword && (
@@ -650,12 +693,17 @@ const Register = () => {
                     {errors.confirmPassword}
                   </p>
                 )}
+
               </div>
 
-              {/* Terms */}
+              {/* =========================================
+                  TERMS
+              ========================================= */}
 
               <div>
+
                 <label className="flex cursor-pointer items-start gap-2.5">
+
                   <button
                     type="button"
                     onClick={() =>
@@ -674,22 +722,29 @@ const Register = () => {
                   </button>
 
                   <span className="text-[11px] leading-5 text-slate-500 sm:text-xs">
+
                     I agree to the{" "}
+
                     <button
                       type="button"
                       className="font-semibold text-indigo-600 hover:text-indigo-700"
                     >
                       Terms of Service
                     </button>{" "}
+
                     and{" "}
+
                     <button
                       type="button"
                       className="font-semibold text-indigo-600 hover:text-indigo-700"
                     >
                       Privacy Policy
                     </button>
+
                     .
+
                   </span>
+
                 </label>
 
                 {errors.terms && (
@@ -697,19 +752,22 @@ const Register = () => {
                     {errors.terms}
                   </p>
                 )}
+
               </div>
 
-              {/* Create Account */}
+              {/* =========================================
+                  CREATE ACCOUNT
+              ========================================= */}
 
               <button
                 type="submit"
                 disabled={isLoading}
                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-200 transition hover:bg-indigo-700 hover:shadow-md sm:py-3.5 disabled:cursor-not-allowed disabled:opacity-60"
               >
+
                 {isLoading ? (
                   <>
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-
                     Creating account...
                   </>
                 ) : (
@@ -722,48 +780,63 @@ const Register = () => {
                     />
                   </>
                 )}
+
               </button>
 
-              {/* Security */}
+              {/* =========================================
+                  SECURITY
+              ========================================= */}
 
               <div className="flex items-center justify-center gap-1.5 pt-0.5 text-[10px] text-slate-400 sm:gap-2 sm:pt-1 sm:text-xs">
+
                 <ShieldCheck size={14} />
 
                 <span>
                   Your information is kept secure.
                 </span>
+
               </div>
+
             </form>
 
-            {/* =================================================
+            {/* =========================================
                 LOGIN
-            ================================================= */}
+            ========================================= */}
 
             <div className="mt-6 text-center sm:mt-7">
+
               <p className="text-xs text-slate-500 sm:text-sm">
+
                 Already have an account?{" "}
+
                 <Link
                   to="/login"
                   className="font-semibold text-indigo-600 transition hover:text-indigo-700"
                 >
                   Sign in
                 </Link>
+
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
     </div>
   );
 };
 
-// =====================================================
+// ==========================================
 // BRAND FEATURE
-// =====================================================
+// ==========================================
 
 const BrandFeature = ({ text }) => {
   return (
     <div className="flex items-center gap-3">
+
       <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/15 text-white xl:h-7 xl:w-7">
         <Check size={14} />
       </div>
@@ -771,17 +844,19 @@ const BrandFeature = ({ text }) => {
       <span className="text-xs text-indigo-50 xl:text-sm">
         {text}
       </span>
+
     </div>
   );
 };
 
-// =====================================================
+// ==========================================
 // PASSWORD REQUIREMENT
-// =====================================================
+// ==========================================
 
 const PasswordRequirement = ({ checked, text }) => {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
+
       <div
         className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full ${
           checked
@@ -801,6 +876,7 @@ const PasswordRequirement = ({ checked, text }) => {
       >
         {text}
       </span>
+
     </div>
   );
 };
