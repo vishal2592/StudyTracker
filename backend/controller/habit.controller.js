@@ -1,5 +1,5 @@
 const Habit = require("../models/habit.model");
-
+const HabitLog = require("../models/habitLog.model");
 // CREATE HABIT
 
 // CREATE HABIT
@@ -117,6 +117,7 @@ const getHabits = async (req, res) => {
 
     // IST Day Boundaries
     const startOfDayUTC = new Date(`${date}T00:00:00+05:30`);
+
     const endOfDayUTC = new Date(`${date}T23:59:59.999+05:30`);
 
     // Get Active Habits
@@ -128,7 +129,6 @@ const getHabits = async (req, res) => {
     });
 
     // Get Habit Logs For Selected Date
-    const HabitLog = require("../models/habitLog.model");
 
     const habitLogs = await HabitLog.find({
       user: userId,
@@ -138,7 +138,7 @@ const getHabits = async (req, res) => {
       },
     });
 
-    // Add Daily Completion Status
+    // Add Selected Date Completion Status
     const habitsWithStatus = habits.map((habit) => {
       const log = habitLogs.find(
         (habitLog) => habitLog.habit.toString() === habit._id.toString(),
@@ -147,8 +147,14 @@ const getHabits = async (req, res) => {
       return {
         _id: habit._id,
         name: habit.name,
+        reminder: habit.reminder,
+        category: habit.category,
+        description: habit.description,
+        frequency: habit.frequency,
+        startDate: habit.startDate,
         points: habit.points,
         isActive: habit.isActive,
+
         isCompleted: log ? log.isCompleted : false,
         completedAt: log ? log.completedAt : null,
         logId: log ? log._id : null,
@@ -165,16 +171,21 @@ const getHabits = async (req, res) => {
     const pendingHabits = totalHabits - completedHabits;
 
     const positiveScore = completedHabits * 5;
+
     const negativeScore = pendingHabits * -5;
 
     return res.status(200).json({
       success: true,
       date,
+      timezone: "Asia/Kolkata",
+
       totalHabits,
       completedHabits,
       pendingHabits,
+
       positiveScore,
       negativeScore,
+
       habits: habitsWithStatus,
     });
   } catch (error) {
@@ -193,11 +204,10 @@ const getHabits = async (req, res) => {
 const toggleHabit = async (req, res) => {
   try {
     const userId = req.user.userId;
-
     const { habitId } = req.params;
     const { date } = req.body;
 
-    // Date Required
+    // Date required
     if (!date) {
       return res.status(400).json({
         success: false,
@@ -205,7 +215,7 @@ const toggleHabit = async (req, res) => {
       });
     }
 
-    // Validate Date Format
+    // Date format validation
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
     if (!dateRegex.test(date)) {
@@ -215,11 +225,7 @@ const toggleHabit = async (req, res) => {
       });
     }
 
-    // IST Day Boundaries
-    const startOfDayUTC = new Date(`${date}T00:00:00+05:30`);
-    const endOfDayUTC = new Date(`${date}T23:59:59.999+05:30`);
-
-    // Find Habit
+    // Find active habit
     const habit = await Habit.findOne({
       _id: habitId,
       user: userId,
@@ -233,10 +239,12 @@ const toggleHabit = async (req, res) => {
       });
     }
 
-    // HabitLog Model
-    const HabitLog = require("../models/habitLog.model");
+    // IST day boundaries
+    const startOfDayUTC = new Date(`${date}T00:00:00+05:30`);
 
-    // Find Existing Log For Selected Date
+    const endOfDayUTC = new Date(`${date}T23:59:59.999+05:30`);
+
+    // Find existing log for this habit and selected date
     let habitLog = await HabitLog.findOne({
       user: userId,
       habit: habitId,
@@ -246,7 +254,7 @@ const toggleHabit = async (req, res) => {
       },
     });
 
-    // If Log Does Not Exist → Create Completed Log
+    // If log does not exist
     if (!habitLog) {
       habitLog = await HabitLog.create({
         user: userId,
@@ -255,10 +263,8 @@ const toggleHabit = async (req, res) => {
         isCompleted: true,
         completedAt: new Date(),
       });
-    }
-
-    // If Log Already Exists → Toggle
-    else {
+    } else {
+      // Toggle existing log
       habitLog.isCompleted = !habitLog.isCompleted;
 
       if (habitLog.isCompleted) {
@@ -270,27 +276,43 @@ const toggleHabit = async (req, res) => {
       await habitLog.save();
     }
 
-    // Score
+    // Calculate score
     const score = habitLog.isCompleted ? habit.points : -habit.points;
 
     return res.status(200).json({
       success: true,
       message: habitLog.isCompleted
-        ? "Habit completed successfully"
+        ? "Habit marked as completed"
         : "Habit marked as incomplete",
 
       date,
+      timezone: "Asia/Kolkata",
+
+      habit: {
+        _id: habit._id,
+        name: habit.name,
+        reminder: habit.reminder,
+        category: habit.category,
+        description: habit.description,
+        frequency: habit.frequency,
+        points: habit.points,
+      },
+
+      habitLog: {
+        _id: habitLog._id,
+        date: habitLog.date,
+        isCompleted: habitLog.isCompleted,
+        completedAt: habitLog.completedAt,
+      },
 
       score,
-
-      habitLog,
     });
   } catch (error) {
     console.error("Toggle Habit Error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Failed to update habit",
+      message: "Failed to toggle habit",
       error: error.message,
     });
   }
@@ -301,19 +323,19 @@ const toggleHabit = async (req, res) => {
 const editHabit = async (req, res) => {
   try {
     const userId = req.user.userId;
-
     const { habitId } = req.params;
-    const { name } = req.body;
 
-    // Name Required
-    if (!name || !name.trim()) {
+    const { name, reminder } = req.body;
+
+    // At least one field required
+    if ((name === undefined || !name.trim()) && reminder === undefined) {
       return res.status(400).json({
         success: false,
-        message: "Habit name is required",
+        message: "Habit name or reminder is required",
       });
     }
 
-    // Find Habit
+    // Find habit
     const habit = await Habit.findOne({
       _id: habitId,
       user: userId,
@@ -327,33 +349,66 @@ const editHabit = async (req, res) => {
       });
     }
 
-    // Check Duplicate Habit
-    const existingHabit = await Habit.findOne({
-      _id: { $ne: habitId },
-      user: userId,
-      name: name.trim(),
-      isActive: true,
-    });
+    // Update name if provided
+    if (name !== undefined) {
+      const trimmedName = name.trim();
 
-    if (existingHabit) {
-      return res.status(400).json({
-        success: false,
-        message: "This habit already exists",
+      if (!trimmedName) {
+        return res.status(400).json({
+          success: false,
+          message: "Habit name cannot be empty",
+        });
+      }
+
+      // Check duplicate habit name
+      const existingHabit = await Habit.findOne({
+        user: userId,
+        name: trimmedName,
+        isActive: true,
+        _id: { $ne: habitId },
       });
+
+      if (existingHabit) {
+        return res.status(400).json({
+          success: false,
+          message: "This habit already exists",
+        });
+      }
+
+      habit.name = trimmedName;
     }
 
-    // Update Name
-    habit.name = name.trim();
+    // Update reminder if provided
+    if (reminder !== undefined) {
+      const reminderRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-    // Keep Points Fixed
-    habit.points = 5;
+      if (!reminderRegex.test(reminder)) {
+        return res.status(400).json({
+          success: false,
+          message: "Reminder must be in HH:MM format",
+        });
+      }
+
+      habit.reminder = reminder;
+    }
 
     await habit.save();
 
     return res.status(200).json({
       success: true,
       message: "Habit updated successfully",
-      habit,
+
+      habit: {
+        _id: habit._id,
+        name: habit.name,
+        reminder: habit.reminder,
+        category: habit.category,
+        description: habit.description,
+        frequency: habit.frequency,
+        startDate: habit.startDate,
+        points: habit.points,
+        isActive: habit.isActive,
+      },
     });
   } catch (error) {
     console.error("Edit Habit Error:", error);
@@ -371,10 +426,9 @@ const editHabit = async (req, res) => {
 const deleteHabit = async (req, res) => {
   try {
     const userId = req.user.userId;
-
     const { habitId } = req.params;
 
-    // Find Habit
+    // Find active habit
     const habit = await Habit.findOne({
       _id: habitId,
       user: userId,
@@ -388,7 +442,7 @@ const deleteHabit = async (req, res) => {
       });
     }
 
-    // Soft Delete
+    // Soft delete
     habit.isActive = false;
 
     await habit.save();
@@ -396,7 +450,11 @@ const deleteHabit = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Habit deleted successfully",
-      habit,
+      habit: {
+        _id: habit._id,
+        name: habit.name,
+        isActive: habit.isActive,
+      },
     });
   } catch (error) {
     console.error("Delete Habit Error:", error);
