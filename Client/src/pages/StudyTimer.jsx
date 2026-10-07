@@ -1,10 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   AlarmClock,
   BarChart3,
   CalendarDays,
   Check,
-  CheckCircle2,
   ChevronDown,
   Clock3,
   Flame,
@@ -17,38 +21,46 @@ import {
   X,
 } from "lucide-react";
 
+import { useDispatch, useSelector } from "react-redux";
+
+import {
+  startStudy,
+  stopStudy,
+  getStudySummary,
+  clearStudyError,
+} from "../redux/slicer/studySlice";
+
+import {
+  getTargets,
+} from "../redux/slicer/dailyTargetSlice";
+
 const StudyTimer = () => {
+  const dispatch = useDispatch();
+
   // =====================================================
-  // DUMMY SUBJECTS
-  // Later these will come from Daily Targets / Redux
+  // STUDY REDUX STATE
   // =====================================================
 
-  const subjects = [
-    {
-      id: 1,
-      name: "Mathematics",
-      targetHours: 2,
-      color: "purple",
-    },
-    {
-      id: 2,
-      name: "Physics",
-      targetHours: 2,
-      color: "indigo",
-    },
-    {
-      id: 3,
-      name: "Chemistry",
-      targetHours: 1.5,
-      color: "blue",
-    },
-    {
-      id: 4,
-      name: "Biology",
-      targetHours: 2,
-      color: "emerald",
-    },
-  ];
+  const {
+    currentSession,
+    isStudying,
+    startLoading,
+    stopLoading,
+    summary,
+    summaryLoading,
+    error,
+  } = useSelector((state) => state.study);
+
+  // =====================================================
+  // DAILY TARGET REDUX STATE
+  // =====================================================
+
+  const {
+    targets,
+    loading: targetLoading,
+  } = useSelector(
+    (state) => state.dailyTarget,
+  );
 
   // =====================================================
   // TODAY KEY
@@ -58,8 +70,14 @@ const StudyTimer = () => {
     const today = new Date();
 
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
+
+    const month = String(
+      today.getMonth() + 1,
+    ).padStart(2, "0");
+
+    const day = String(
+      today.getDate(),
+    ).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
   };
@@ -67,333 +85,120 @@ const StudyTimer = () => {
   const todayKey = getTodayKey();
 
   // =====================================================
+  // NORMALIZE SUBJECT
+  // =====================================================
+  // Daily Target may have:
+  // physics
+  // biology
+  // chemistry
+  //
+  // StudySession backend expects:
+  // Physics
+  // Biology
+  // Chemistry
+  // =====================================================
+
+  const normalizeSubject = (subject) => {
+    if (!subject) {
+      return "";
+    }
+
+    const value = String(subject)
+      .trim()
+      .toLowerCase();
+
+    const subjectMap = {
+      biology: "Biology",
+      physics: "Physics",
+      chemistry: "Chemistry",
+      "mock test": "Mock Test",
+      other: "Other",
+    };
+
+    return (
+      subjectMap[value] ||
+      String(subject).trim()
+    );
+  };
+
+  // =====================================================
+  // SUBJECTS FROM DAILY TARGETS
+  // =====================================================
+
+  const subjects = useMemo(() => {
+    if (!Array.isArray(targets)) {
+      return [];
+    }
+
+    return targets.map((target) => ({
+      id: target._id,
+
+      name: target.title,
+
+      backendName: normalizeSubject(
+        target.title,
+      ),
+
+      targetHours:
+        Number(target.durationMinutes || 0) /
+        60,
+
+      durationMinutes:
+        Number(
+          target.durationMinutes || 0,
+        ),
+
+      color: "purple",
+    }));
+  }, [targets]);
+
+  // =====================================================
   // STATES
   // =====================================================
 
-  const [selectedSubjectId, setSelectedSubjectId] =
-    useState(subjects[0].id);
+  const [
+    selectedSubjectId,
+    setSelectedSubjectId,
+  ] = useState(null);
 
-  const [isTimerRunning, setIsTimerRunning] =
-    useState(false);
+  const [
+    isTimerRunning,
+    setIsTimerRunning,
+  ] = useState(false);
 
-  const [startTime, setStartTime] = useState(null);
+  const [
+    startTime,
+    setStartTime,
+  ] = useState(null);
 
-  const [elapsedSeconds, setElapsedSeconds] =
-    useState(0);
+  const [
+    elapsedSeconds,
+    setElapsedSeconds,
+  ] = useState(0);
 
-  const [liveSeconds, setLiveSeconds] = useState(0);
-
-  const [sessions, setSessions] = useState([
-    {
-      id: 1,
-      subjectId: 1,
-      subjectName: "Mathematics",
-      startTime: new Date(
-        new Date().setHours(10, 0, 0, 0)
-      ).getTime(),
-      endTime: new Date(
-        new Date().setHours(12, 1, 0, 0)
-      ).getTime(),
-      durationSeconds: 7260,
-      reason: "Target completed",
-      punctuality: "on-time",
-      nextStartTime: null,
-    },
-    {
-      id: 2,
-      subjectId: 2,
-      subjectName: "Physics",
-      startTime: new Date(
-        new Date().setHours(17, 20, 0, 0)
-      ).getTime(),
-      endTime: new Date(
-        new Date().setHours(18, 30, 0, 0)
-      ).getTime(),
-      durationSeconds: 4200,
-      reason: "Break",
-      punctuality: "early",
-      nextStartTime: null,
-    },
-  ]);
-
-  // Stop modal
-  const [showStopModal, setShowStopModal] =
-    useState(false);
-
-  const [stopReason, setStopReason] =
-    useState("");
-
-  const [nextStartInput, setNextStartInput] =
-    useState("");
+  const [
+    liveSeconds,
+    setLiveSeconds,
+  ] = useState(0);
 
   // =====================================================
-  // SELECTED SUBJECT
+  // STOP MODAL
   // =====================================================
 
-  const selectedSubject = useMemo(() => {
-    return (
-      subjects.find(
-        (subject) => subject.id === selectedSubjectId
-      ) || subjects[0]
-    );
-  }, [selectedSubjectId]);
+  const [
+    showStopModal,
+    setShowStopModal,
+  ] = useState(false);
 
-  // =====================================================
-  // TIMER
-  // =====================================================
+  const [
+    stopReason,
+    setStopReason,
+  ] = useState("");
 
-  useEffect(() => {
-    if (!isTimerRunning || !startTime) {
-      return;
-    }
-
-    const updateTimer = () => {
-      const now = Date.now();
-
-      const seconds = Math.floor(
-        (now - startTime) / 1000
-      );
-
-      setElapsedSeconds(seconds);
-      setLiveSeconds(seconds);
-    };
-
-    updateTimer();
-
-    const interval = setInterval(
-      updateTimer,
-      1000
-    );
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [isTimerRunning, startTime]);
-
-  // =====================================================
-  // FORMAT TIME
-  // =====================================================
-
-  const formatTimer = (totalSeconds) => {
-    const hours = Math.floor(
-      totalSeconds / 3600
-    );
-
-    const minutes = Math.floor(
-      (totalSeconds % 3600) / 60
-    );
-
-    const seconds = totalSeconds % 60;
-
-    return [
-      String(hours).padStart(2, "0"),
-      String(minutes).padStart(2, "0"),
-      String(seconds).padStart(2, "0"),
-    ].join(":");
-  };
-
-  const formatDuration = (totalSeconds) => {
-    const hours = Math.floor(
-      totalSeconds / 3600
-    );
-
-    const minutes = Math.floor(
-      (totalSeconds % 3600) / 60
-    );
-
-    if (hours > 0 && minutes > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-
-    if (hours > 0) {
-      return `${hours}h`;
-    }
-
-    return `${minutes}m`;
-  };
-
-  const formatHours = (hours) => {
-    const wholeHours = Math.floor(hours);
-
-    const minutes = Math.round(
-      (hours - wholeHours) * 60
-    );
-
-    if (minutes === 0) {
-      return `${wholeHours}h`;
-    }
-
-    return `${wholeHours}h ${minutes}m`;
-  };
-
-  // =====================================================
-  // FORMAT CLOCK TIME
-  // =====================================================
-
-  const formatClockTime = (timestamp) => {
-    if (!timestamp) return "--";
-
-    return new Date(timestamp).toLocaleTimeString(
-      [],
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-      }
-    );
-  };
-
-  // =====================================================
-  // START PUNCTUALITY
-  // =====================================================
-
-  const getTimeInMinutes = (date) => {
-    return (
-      date.getHours() * 60 +
-      date.getMinutes()
-    );
-  };
-
-  const getPunctuality = () => {
-    if (!nextStartInput) {
-      return null;
-    }
-
-    const now = new Date();
-
-    const actualMinutes =
-      getTimeInMinutes(now);
-
-    const [hours, minutes] =
-      nextStartInput
-        .split(":")
-        .map(Number);
-
-    const expectedDate = new Date();
-
-    expectedDate.setHours(
-      hours,
-      minutes,
-      0,
-      0
-    );
-
-    const expectedMinutes =
-      getTimeInMinutes(expectedDate);
-
-    if (actualMinutes < expectedMinutes) {
-      return "early";
-    }
-
-    if (actualMinutes > expectedMinutes) {
-      return "late";
-    }
-
-    return "on-time";
-  };
-
-  // =====================================================
-  // START TIMER
-  // =====================================================
-
-  const handleStartTimer = () => {
-    if (isTimerRunning) {
-      return;
-    }
-
-    const now = Date.now();
-
-    setStartTime(now);
-    setElapsedSeconds(0);
-    setLiveSeconds(0);
-    setIsTimerRunning(true);
-  };
-
-  // =====================================================
-  // STOP TIMER
-  // =====================================================
-
-  const handleStopTimer = () => {
-    if (!isTimerRunning || !startTime) {
-      return;
-    }
-
-    const finalSeconds = Math.floor(
-      (Date.now() - startTime) / 1000
-    );
-
-    setElapsedSeconds(finalSeconds);
-    setLiveSeconds(finalSeconds);
-
-    setShowStopModal(true);
-  };
-
-  // =====================================================
-  // CANCEL STOP
-  // =====================================================
-
-  const handleCancelStop = () => {
-    setShowStopModal(false);
-    setStopReason("");
-    setNextStartInput("");
-  };
-
-  // =====================================================
-  // CONFIRM STOP
-  // =====================================================
-
-  const handleConfirmStop = (event) => {
-    event.preventDefault();
-
-    if (
-      !stopReason.trim() ||
-      !startTime
-    ) {
-      return;
-    }
-
-    const endTime = Date.now();
-
-    const finalSeconds = Math.floor(
-      (endTime - startTime) / 1000
-    );
-
-    const punctuality =
-      getPunctuality();
-
-    const newSession = {
-      id: Date.now(),
-      subjectId: selectedSubject.id,
-      subjectName: selectedSubject.name,
-      startTime,
-      endTime,
-      durationSeconds: finalSeconds,
-      reason: stopReason.trim(),
-      punctuality,
-      nextStartTime:
-        nextStartInput || null,
-    };
-
-    setSessions((prev) => [
-      ...prev,
-      newSession,
-    ]);
-
-    setIsTimerRunning(false);
-    setStartTime(null);
-    setElapsedSeconds(0);
-    setLiveSeconds(0);
-
-    setShowStopModal(false);
-    setStopReason("");
-
-    // Keep next start time for next punctuality check
-    // through separate state below.
-    setNextStartTimeState(
-      nextStartInput || null
-    );
-
-    setNextStartInput("");
-  };
+  const [
+    nextStartInput,
+    setNextStartInput,
+  ] = useState("");
 
   // =====================================================
   // NEXT START TIME
@@ -405,127 +210,779 @@ const StudyTimer = () => {
   ] = useState(null);
 
   // =====================================================
-  // UPDATED START WITH PUNCTUALITY CHECK
+  // SELECTED SUBJECT
   // =====================================================
 
-  const handleStartWithPunctuality = () => {
-    if (isTimerRunning) {
+  const selectedSubject = useMemo(() => {
+    if (!subjects.length) {
+      return null;
+    }
+
+    return (
+      subjects.find(
+        (subject) =>
+          subject.id === selectedSubjectId,
+      ) || subjects[0]
+    );
+  }, [
+    subjects,
+    selectedSubjectId,
+  ]);
+
+  // =====================================================
+  // FETCH TODAY'S DAILY TARGETS
+  // =====================================================
+
+  useEffect(() => {
+    dispatch(
+      getTargets(todayKey),
+    );
+  }, [dispatch, todayKey]);
+
+  // =====================================================
+  // FETCH TODAY'S STUDY SUMMARY
+  // =====================================================
+
+  useEffect(() => {
+    dispatch(
+      getStudySummary(todayKey),
+    );
+  }, [dispatch, todayKey]);
+
+  // =====================================================
+  // SET FIRST SUBJECT AUTOMATICALLY
+  // =====================================================
+
+  useEffect(() => {
+    if (!subjects.length) {
+      setSelectedSubjectId(null);
       return;
     }
 
-    let punctuality = null;
+    const selectedStillExists =
+      subjects.some(
+        (subject) =>
+          subject.id ===
+          selectedSubjectId,
+      );
 
-    if (nextStartTimeState) {
-      const now = new Date();
-
-      const actualMinutes =
-        getTimeInMinutes(now);
-
-      const [
-        expectedHours,
-        expectedMinutesValue,
-      ] = nextStartTimeState
-        .split(":")
-        .map(Number);
-
-      const expectedMinutes =
-        expectedHours * 60 +
-        expectedMinutesValue;
-
-      if (actualMinutes < expectedMinutes) {
-        punctuality = "early";
-      } else if (
-        actualMinutes > expectedMinutes
-      ) {
-        punctuality = "late";
-      } else {
-        punctuality = "on-time";
-      }
-    }
-
-    if (punctuality) {
-      console.log(
-        "Next session punctuality:",
-        punctuality
+    if (!selectedStillExists) {
+      setSelectedSubjectId(
+        subjects[0].id,
       );
     }
+  }, [
+    subjects,
+    selectedSubjectId,
+  ]);
 
-    const now = Date.now();
+  // =====================================================
+  // GET NEXT START TIME FROM SUMMARY
+  // =====================================================
 
-    setStartTime(now);
-    setElapsedSeconds(0);
-    setLiveSeconds(0);
-    setIsTimerRunning(true);
+  useEffect(() => {
+    if (
+      !summary?.sessions ||
+      !summary.sessions.length
+    ) {
+      return;
+    }
 
-    setNextStartTimeState(null);
+    const sessions = [
+      ...summary.sessions,
+    ].sort(
+      (a, b) =>
+        new Date(b.createdAt || b.startTime) -
+        new Date(a.createdAt || a.startTime),
+    );
+
+    const latestSession =
+      sessions[0];
+
+    if (
+      latestSession?.nextStartTime
+    ) {
+      const date = new Date(
+        latestSession.nextStartTime,
+      );
+
+      if (!Number.isNaN(date.getTime())) {
+        setNextStartTimeState(
+          date.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+        );
+      }
+    }
+  }, [summary]);
+
+  // =====================================================
+  // SYNC REDUX RUNNING STATE
+  // =====================================================
+
+  useEffect(() => {
+    if (
+      isStudying &&
+      currentSession
+    ) {
+      setIsTimerRunning(true);
+
+      setStartTime(
+        new Date(
+          currentSession.startTime,
+        ).getTime(),
+      );
+
+      const runningSubject =
+        normalizeSubject(
+          currentSession.subject,
+        );
+
+      const subject =
+        subjects.find(
+          (item) =>
+            normalizeSubject(
+              item.name,
+            ) === runningSubject,
+        );
+
+      if (subject) {
+        setSelectedSubjectId(
+          subject.id,
+        );
+      }
+
+      return;
+    }
+
+    if (!isStudying) {
+      setIsTimerRunning(false);
+    }
+  }, [
+    isStudying,
+    currentSession,
+    subjects,
+  ]);
+
+  // =====================================================
+  // TIMER
+  // =====================================================
+
+  useEffect(() => {
+    if (
+      !isTimerRunning ||
+      !startTime
+    ) {
+      return;
+    }
+
+    const updateTimer = () => {
+      const now = Date.now();
+
+      const seconds = Math.max(
+        0,
+        Math.floor(
+          (now - startTime) /
+            1000,
+        ),
+      );
+
+      setElapsedSeconds(
+        seconds,
+      );
+
+      setLiveSeconds(
+        seconds,
+      );
+    };
+
+    updateTimer();
+
+    const interval =
+      setInterval(
+        updateTimer,
+        1000,
+      );
+
+    return () => {
+      clearInterval(
+        interval,
+      );
+    };
+  }, [
+    isTimerRunning,
+    startTime,
+  ]);
+
+  // =====================================================
+  // FORMAT TIMER
+  // =====================================================
+
+  const formatTimer = (
+    totalSeconds,
+  ) => {
+    const hours =
+      Math.floor(
+        totalSeconds / 3600,
+      );
+
+    const minutes =
+      Math.floor(
+        (totalSeconds % 3600) /
+          60,
+      );
+
+    const seconds =
+      totalSeconds % 60;
+
+    return [
+      String(hours).padStart(
+        2,
+        "0",
+      ),
+      String(minutes).padStart(
+        2,
+        "0",
+      ),
+      String(seconds).padStart(
+        2,
+        "0",
+      ),
+    ].join(":");
   };
+
+  // =====================================================
+  // FORMAT DURATION
+  // =====================================================
+
+  const formatDuration = (
+    totalSeconds,
+  ) => {
+    const hours =
+      Math.floor(
+        totalSeconds / 3600,
+      );
+
+    const minutes =
+      Math.floor(
+        (totalSeconds % 3600) /
+          60,
+      );
+
+    if (
+      hours > 0 &&
+      minutes > 0
+    ) {
+      return `${hours}h ${minutes}m`;
+    }
+
+    if (hours > 0) {
+      return `${hours}h`;
+    }
+
+    return `${minutes}m`;
+  };
+
+  // =====================================================
+  // FORMAT HOURS
+  // =====================================================
+
+  const formatHours = (
+    hours,
+  ) => {
+    const wholeHours =
+      Math.floor(hours);
+
+    const minutes =
+      Math.round(
+        (hours - wholeHours) *
+          60,
+      );
+
+    if (minutes === 0) {
+      return `${wholeHours}h`;
+    }
+
+    if (wholeHours === 0) {
+      return `${minutes}m`;
+    }
+
+    return `${wholeHours}h ${minutes}m`;
+  };
+
+  // =====================================================
+  // FORMAT CLOCK TIME
+  // =====================================================
+
+  const formatClockTime = (
+    timestamp,
+  ) => {
+    if (!timestamp) {
+      return "--";
+    }
+
+    const date = new Date(
+      timestamp,
+    );
+
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return "--";
+    }
+
+    return date.toLocaleTimeString(
+      [],
+      {
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+    );
+  };
+
+  // =====================================================
+  // CONVERT TIME INPUT TO ISO
+  // =====================================================
+
+  const convertTimeToISO = (
+    time,
+  ) => {
+    if (!time) {
+      return null;
+    }
+
+    const [
+      hours,
+      minutes,
+    ] = time
+      .split(":")
+      .map(Number);
+
+    const date =
+      new Date();
+
+    date.setHours(
+      hours,
+      minutes,
+      0,
+      0,
+    );
+
+    return date.toISOString();
+  };
+
+  // =====================================================
+  // START TIMER
+  // =====================================================
+
+  const handleStartWithPunctuality =
+    async () => {
+      if (
+        isTimerRunning ||
+        startLoading ||
+        !selectedSubject
+      ) {
+        return;
+      }
+
+      try {
+        dispatch(
+          clearStudyError(),
+        );
+
+        const result =
+          await dispatch(
+            startStudy({
+              subject:
+                selectedSubject.backendName,
+            }),
+          ).unwrap();
+
+        if (result?.session) {
+          const session =
+            result.session;
+
+          setStartTime(
+            new Date(
+              session.startTime,
+            ).getTime(),
+          );
+
+          setElapsedSeconds(0);
+
+          setLiveSeconds(0);
+
+          setIsTimerRunning(
+            true,
+          );
+
+          setNextStartTimeState(
+            null,
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Start Study Error:",
+          error,
+        );
+
+        // =============================================
+        // BACKEND REQUIRES LATE REASON
+        // =============================================
+
+        if (
+          error?.requiresLateReason
+        ) {
+          const reason =
+            window.prompt(
+              "You are starting late. Please enter the reason:",
+            );
+
+          if (
+            reason &&
+            reason.trim()
+          ) {
+            try {
+              const result =
+                await dispatch(
+                  startStudy({
+                    subject:
+                      selectedSubject.backendName,
+
+                    lateReason:
+                      reason.trim(),
+                  }),
+                ).unwrap();
+
+              if (
+                result?.session
+              ) {
+                const session =
+                  result.session;
+
+                setStartTime(
+                  new Date(
+                    session.startTime,
+                  ).getTime(),
+                );
+
+                setElapsedSeconds(
+                  0,
+                );
+
+                setLiveSeconds(
+                  0,
+                );
+
+                setIsTimerRunning(
+                  true,
+                );
+
+                setNextStartTimeState(
+                  null,
+                );
+              }
+            } catch (
+              retryError
+            ) {
+              console.error(
+                "Late Start Error:",
+                retryError,
+              );
+            }
+          }
+        }
+      }
+    };
+
+  // =====================================================
+  // STOP TIMER
+  // =====================================================
+
+  const handleStopTimer = () => {
+    if (
+      !isTimerRunning ||
+      !startTime
+    ) {
+      return;
+    }
+
+    const finalSeconds =
+      Math.floor(
+        (Date.now() -
+          startTime) /
+          1000,
+      );
+
+    setElapsedSeconds(
+      finalSeconds,
+    );
+
+    setLiveSeconds(
+      finalSeconds,
+    );
+
+    setShowStopModal(
+      true,
+    );
+  };
+
+  // =====================================================
+  // CANCEL STOP
+  // =====================================================
+
+  const handleCancelStop = () => {
+    setShowStopModal(
+      false,
+    );
+
+    setStopReason("");
+
+    setNextStartInput("");
+  };
+
+  // =====================================================
+  // CONFIRM STOP
+  // =====================================================
+
+  const handleConfirmStop =
+    async (event) => {
+      event.preventDefault();
+
+      if (
+        !stopReason.trim() ||
+        !nextStartInput ||
+        !startTime ||
+        stopLoading
+      ) {
+        return;
+      }
+
+      try {
+        dispatch(
+          clearStudyError(),
+        );
+
+        const plannedNextStartTime =
+          convertTimeToISO(
+            nextStartInput,
+          );
+
+        const result =
+          await dispatch(
+            stopStudy({
+              stopReason:
+                stopReason.trim(),
+
+              nextStartTime:
+                plannedNextStartTime,
+            }),
+          ).unwrap();
+
+        // =============================================
+        // STOP SUCCESS
+        // =============================================
+
+        setIsTimerRunning(
+          false,
+        );
+
+        setStartTime(null);
+
+        setElapsedSeconds(0);
+
+        setLiveSeconds(0);
+
+        setShowStopModal(
+          false,
+        );
+
+        setStopReason("");
+
+        setNextStartTimeState(
+          nextStartInput,
+        );
+
+        setNextStartInput("");
+
+        // =============================================
+        // REFRESH TARGETS
+        // =============================================
+
+        await dispatch(
+          getTargets(
+            todayKey,
+          ),
+        ).unwrap();
+
+        // =============================================
+        // REFRESH SUMMARY
+        // =============================================
+
+        await dispatch(
+          getStudySummary(
+            todayKey,
+          ),
+        ).unwrap();
+
+        console.log(
+          "Study session stopped:",
+          result?.session,
+        );
+      } catch (error) {
+        console.error(
+          "Stop Study Error:",
+          error,
+        );
+      }
+    };
 
   // =====================================================
   // TODAY'S SESSIONS
   // =====================================================
 
-  const todaySessions = useMemo(() => {
-    return sessions.filter((session) => {
-      const date = new Date(
-        session.startTime
-      );
+  const todaySessions =
+    useMemo(() => {
+      if (
+        !summary?.sessions
+      ) {
+        return [];
+      }
 
-      const year = date.getFullYear();
-      const month = String(
-        date.getMonth() + 1
-      ).padStart(2, "0");
-      const day = String(
-        date.getDate()
-      ).padStart(2, "0");
+      return summary.sessions.map(
+        (session) => {
+          const subject =
+            subjects.find(
+              (item) =>
+                normalizeSubject(
+                  item.name,
+                ) ===
+                normalizeSubject(
+                  session.subject,
+                ),
+            );
 
-      return (
-        `${year}-${month}-${day}` ===
-        todayKey
+          return {
+            id: session._id,
+
+            subjectId:
+              subject?.id || null,
+
+            subjectName:
+              session.subject,
+
+            startTime:
+              session.startTime,
+
+            endTime:
+              session.stopTime,
+
+            durationSeconds:
+              (session.durationMinutes ||
+                0) *
+              60,
+
+            reason:
+              session.lateReason ||
+              session.stopReason ||
+              "Completed",
+
+            punctuality:
+              session.startType,
+
+            nextStartTime:
+              session.nextStartTime,
+
+            scheduleScore:
+              session.scheduleScore ||
+              0,
+          };
+        },
       );
-    });
-  }, [sessions, todayKey]);
+    }, [
+      summary,
+      subjects,
+    ]);
 
   // =====================================================
-  // TOTAL STUDY SECONDS
+  // COMPLETED STUDY SECONDS
   // =====================================================
 
-  const completedStudySeconds = useMemo(() => {
-    return todaySessions.reduce(
-      (total, session) =>
-        total + session.durationSeconds,
-      0
-    );
-  }, [todaySessions]);
+  const completedStudySeconds =
+    useMemo(() => {
+      return todaySessions.reduce(
+        (
+          total,
+          session,
+        ) =>
+          total +
+          session.durationSeconds,
+        0,
+      );
+    }, [
+      todaySessions,
+    ]);
+
+  // =====================================================
+  // TODAY STUDY SECONDS
+  // =====================================================
 
   const todayStudySeconds =
-    completedStudySeconds + liveSeconds;
+    completedStudySeconds +
+    liveSeconds;
 
   // =====================================================
-  // TODAY'S TARGET
+  // TODAY TARGET
   // =====================================================
 
   const todayTargetSeconds =
-    selectedSubject.targetHours *
-    60 *
-    60;
+    selectedSubject
+      ? selectedSubject.targetHours *
+        60 *
+        60
+      : 0;
 
-  const subjectStudySeconds = useMemo(() => {
-    return todaySessions
-      .filter(
-        (session) =>
-          session.subjectId ===
-          selectedSubject.id
-      )
-      .reduce(
-        (total, session) =>
-          total +
-          session.durationSeconds,
-        0
-      );
-  }, [
-    todaySessions,
-    selectedSubject.id,
-  ]);
+  // =====================================================
+  // SUBJECT STUDY SECONDS
+  // =====================================================
+
+  const subjectStudySeconds =
+    useMemo(() => {
+      if (!selectedSubject) {
+        return 0;
+      }
+
+      return todaySessions
+        .filter(
+          (session) =>
+            normalizeSubject(
+              session.subjectName,
+            ) ===
+            normalizeSubject(
+              selectedSubject.name,
+            ),
+        )
+        .reduce(
+          (
+            total,
+            session,
+          ) =>
+            total +
+            session.durationSeconds,
+          0,
+        );
+    }, [
+      todaySessions,
+      selectedSubject,
+    ]);
+
+  // =====================================================
+  // SUBJECT CURRENT SECONDS
+  // =====================================================
 
   const subjectCurrentSeconds =
     subjectStudySeconds +
@@ -533,30 +990,46 @@ const StudyTimer = () => {
       ? liveSeconds
       : 0);
 
-  const targetProgress = Math.min(
-    100,
-    Math.round(
-      (subjectCurrentSeconds /
-        todayTargetSeconds) *
-        100
-    )
-  );
+  // =====================================================
+  // TARGET PROGRESS
+  // =====================================================
 
-  const remainingSeconds = Math.max(
-    0,
-    todayTargetSeconds -
-      subjectCurrentSeconds
-  );
+  const targetProgress =
+    todayTargetSeconds > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (subjectCurrentSeconds /
+              todayTargetSeconds) *
+              100,
+          ),
+        )
+      : 0;
 
   // =====================================================
-  // TODAY TOTAL TARGET
+  // REMAINING
+  // =====================================================
+
+  const remainingSeconds =
+    Math.max(
+      0,
+      todayTargetSeconds -
+        subjectCurrentSeconds,
+    );
+
+  // =====================================================
+  // TOTAL DAILY TARGET
   // =====================================================
 
   const totalDailyTargetHours =
     subjects.reduce(
-      (total, subject) =>
-        total + subject.targetHours,
-      0
+      (
+        total,
+        subject,
+      ) =>
+        total +
+        subject.targetHours,
+      0,
     );
 
   const totalDailyTargetSeconds =
@@ -564,14 +1037,21 @@ const StudyTimer = () => {
     60 *
     60;
 
-  const totalDailyProgress = Math.min(
-    100,
-    Math.round(
-      (todayStudySeconds /
-        totalDailyTargetSeconds) *
-        100
-    )
-  );
+  // =====================================================
+  // TOTAL DAILY PROGRESS
+  // =====================================================
+
+  const totalDailyProgress =
+    totalDailyTargetSeconds > 0
+      ? Math.min(
+          100,
+          Math.round(
+            (todayStudySeconds /
+              totalDailyTargetSeconds) *
+              100,
+          ),
+        )
+      : 0;
 
   // =====================================================
   // CURRENT DATE
@@ -585,44 +1065,68 @@ const StudyTimer = () => {
         day: "numeric",
         month: "short",
         year: "numeric",
-      }
+      },
     );
 
   // =====================================================
   // SUBJECT STYLE
   // =====================================================
 
-  const getSubjectStyle = (name) => {
+  const getSubjectStyle = (
+    name,
+  ) => {
+    const normalized =
+      normalizeSubject(name);
+
     const styles = {
       Mathematics: {
-        icon: "bg-purple-100 text-purple-600",
+        icon:
+          "bg-purple-100 text-purple-600",
         gradient:
           "from-purple-500 to-indigo-500",
       },
 
       Physics: {
-        icon: "bg-indigo-100 text-indigo-600",
+        icon:
+          "bg-indigo-100 text-indigo-600",
         gradient:
           "from-indigo-500 to-blue-500",
       },
 
       Chemistry: {
-        icon: "bg-blue-100 text-blue-600",
+        icon:
+          "bg-blue-100 text-blue-600",
         gradient:
           "from-blue-500 to-cyan-500",
       },
 
       Biology: {
-        icon: "bg-emerald-100 text-emerald-600",
+        icon:
+          "bg-emerald-100 text-emerald-600",
         gradient:
           "from-emerald-500 to-teal-500",
+      },
+
+      "Mock Test": {
+        icon:
+          "bg-purple-100 text-purple-600",
+        gradient:
+          "from-purple-500 to-indigo-500",
+      },
+
+      Other: {
+        icon:
+          "bg-slate-100 text-slate-600",
+        gradient:
+          "from-slate-500 to-slate-700",
       },
     };
 
     return (
-      styles[name] || {
+      styles[normalized] || {
         icon:
           "bg-purple-100 text-purple-600",
+
         gradient:
           "from-purple-500 to-indigo-500",
       }
@@ -634,27 +1138,36 @@ const StudyTimer = () => {
   // =====================================================
 
   const getPunctualityLabel = (
-    punctuality
+    punctuality,
   ) => {
-    if (punctuality === "early") {
+    if (
+      punctuality === "early"
+    ) {
       return {
         text: "Started Early",
+
         className:
           "bg-emerald-50 text-emerald-700",
       };
     }
 
-    if (punctuality === "late") {
+    if (
+      punctuality === "late"
+    ) {
       return {
         text: "Started Late",
+
         className:
           "bg-orange-50 text-orange-700",
       };
     }
 
-    if (punctuality === "on-time") {
+    if (
+      punctuality === "on-time"
+    ) {
       return {
         text: "On Time",
+
         className:
           "bg-purple-50 text-purple-700",
       };
@@ -670,6 +1183,30 @@ const StudyTimer = () => {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
+
+        {/* =================================================
+            ERROR
+        ================================================= */}
+
+        {error && (
+          <div className="mb-5 flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+            <p className="text-sm font-medium text-red-700">
+              {error}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                dispatch(
+                  clearStudyError(),
+                )
+              }
+              className="text-red-400 hover:text-red-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* =================================================
             HEADER
@@ -707,6 +1244,31 @@ const StudyTimer = () => {
         </div>
 
         {/* =================================================
+            NO TARGET
+        ================================================= */}
+
+        {!targetLoading &&
+          subjects.length === 0 && (
+            <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50 p-5">
+              <div className="flex items-start gap-3">
+                <Target className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+
+                <div>
+                  <h3 className="text-sm font-semibold text-amber-900">
+                    No study targets for today
+                  </h3>
+
+                  <p className="mt-1 text-xs leading-5 text-amber-700">
+                    Please create today's Daily Target first.
+                    Your subjects and target hours will
+                    automatically appear here.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        {/* =================================================
             TIMER + SIDE INFO
         ================================================= */}
 
@@ -724,8 +1286,6 @@ const StudyTimer = () => {
                   : "border-slate-200"
               }`}
             >
-              {/* Decorative background */}
-
               <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-purple-100/60 blur-3xl" />
 
               <div className="relative">
@@ -736,11 +1296,13 @@ const StudyTimer = () => {
                   {isTimerRunning ? (
                     <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+
                       STUDYING NOW
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-xs font-bold text-slate-600">
                       <TimerReset className="h-3.5 w-3.5" />
+
                       READY TO STUDY
                     </div>
                   )}
@@ -755,23 +1317,49 @@ const StudyTimer = () => {
 
                   <div className="relative">
                     <select
-                      value={selectedSubjectId}
-                      disabled={isTimerRunning}
+                      value={
+                        selectedSubjectId ||
+                        ""
+                      }
+                      disabled={
+                        isTimerRunning ||
+                        startLoading ||
+                        targetLoading ||
+                        subjects.length ===
+                          0
+                      }
                       onChange={(e) =>
                         setSelectedSubjectId(
-                          Number(e.target.value)
+                          e.target.value,
                         )
                       }
                       className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-3 pl-4 pr-10 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      {subjects.map(
-                        (subject) => (
-                          <option
-                            key={subject.id}
-                            value={subject.id}
-                          >
-                            {subject.name}
-                          </option>
+                      {subjects.length ===
+                      0 ? (
+                        <option value="">
+                          No targets available
+                        </option>
+                      ) : (
+                        subjects.map(
+                          (subject) => (
+                            <option
+                              key={
+                                subject.id
+                              }
+                              value={
+                                subject.id
+                              }
+                            >
+                              {
+                                subject.name
+                              }{" "}
+                              —{" "}
+                              {formatHours(
+                                subject.targetHours,
+                              )}
+                            </option>
+                          ),
                         )
                       )}
                     </select>
@@ -785,7 +1373,7 @@ const StudyTimer = () => {
                 <div className="mt-8 text-center">
                   <div className="text-5xl font-bold tracking-tight text-slate-900 sm:text-7xl">
                     {formatTimer(
-                      elapsedSeconds
+                      elapsedSeconds,
                     )}
                   </div>
 
@@ -795,7 +1383,7 @@ const StudyTimer = () => {
                         Started at{" "}
                         <span className="font-semibold text-slate-700">
                           {formatClockTime(
-                            startTime
+                            startTime,
                           )}
                         </span>
                       </p>
@@ -808,38 +1396,66 @@ const StudyTimer = () => {
                   {!isTimerRunning ? (
                     <button
                       type="button"
+                      disabled={
+                        startLoading ||
+                        summaryLoading ||
+                        targetLoading ||
+                        !selectedSubject
+                      }
                       onClick={
                         handleStartWithPunctuality
                       }
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300 sm:w-auto"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-purple-600 px-7 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                     >
-                      <Play className="h-4 w-4 fill-current" />
-                      Start Studying
+                      {startLoading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 fill-current" />
+
+                          Start Studying
+                        </>
+                      )}
                     </button>
                   ) : (
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          // Pause is intentionally disabled
-                          // in this version because the session
-                          // should remain continuous.
-                        }}
+                        disabled
                         className="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-7 py-3.5 text-sm font-semibold text-slate-400 sm:w-auto"
                       >
                         <Pause className="h-4 w-4" />
+
                         Pause
                       </button>
 
                       <button
                         type="button"
+                        disabled={
+                          stopLoading
+                        }
                         onClick={
                           handleStopTimer
                         }
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                       >
-                        <Square className="h-4 w-4 fill-current" />
-                        Stop Session
+                        {stopLoading ? (
+                          <>
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Square className="h-4 w-4 fill-current" />
+
+                            Stop Session
+                          </>
+                        )}
                       </button>
                     </>
                   )}
@@ -853,9 +1469,12 @@ const StudyTimer = () => {
                       <AlarmClock className="h-4 w-4" />
 
                       <span>
-                        Next session planned for{" "}
+                        Next session planned
+                        for{" "}
                         <strong>
-                          {nextStartTimeState}
+                          {
+                            nextStartTimeState
+                          }
                         </strong>
                       </span>
                     </div>
@@ -880,15 +1499,19 @@ const StudyTimer = () => {
                   </p>
 
                   <h3 className="mt-1 text-lg font-bold text-slate-900">
-                    {selectedSubject.name}
+                    {selectedSubject
+                      ? selectedSubject.name
+                      : "No Target"}
                   </h3>
                 </div>
 
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                    getSubjectStyle(
-                      selectedSubject.name
-                    ).icon
+                    selectedSubject
+                      ? getSubjectStyle(
+                          selectedSubject.name,
+                        ).icon
+                      : "bg-slate-100 text-slate-500"
                   }`}
                 >
                   <Target className="h-5 w-5" />
@@ -909,9 +1532,11 @@ const StudyTimer = () => {
                 <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className={`h-full rounded-full bg-gradient-to-r ${
-                      getSubjectStyle(
-                        selectedSubject.name
-                      ).gradient
+                      selectedSubject
+                        ? getSubjectStyle(
+                            selectedSubject.name,
+                          ).gradient
+                        : "from-purple-500 to-indigo-500"
                     } transition-all duration-500`}
                     style={{
                       width: `${targetProgress}%`,
@@ -922,16 +1547,18 @@ const StudyTimer = () => {
                 <div className="mt-3 flex items-center justify-between text-xs">
                   <span className="text-slate-500">
                     {formatDuration(
-                      subjectCurrentSeconds
+                      subjectCurrentSeconds,
                     )}{" "}
                     studied
                   </span>
 
                   <span className="font-medium text-slate-700">
                     Target{" "}
-                    {formatHours(
-                      selectedSubject.targetHours
-                    )}
+                    {selectedSubject
+                      ? formatHours(
+                          selectedSubject.targetHours,
+                        )
+                      : "0h"}
                   </span>
                 </div>
               </div>
@@ -941,9 +1568,10 @@ const StudyTimer = () => {
                   <Clock3 className="h-4 w-4 text-purple-600" />
 
                   <span className="text-xs text-slate-600">
-                    {remainingSeconds > 0
+                    {remainingSeconds >
+                    0
                       ? `${formatDuration(
-                          remainingSeconds
+                          remainingSeconds,
                         )} remaining`
                       : "Target completed"}
                   </span>
@@ -971,8 +1599,9 @@ const StudyTimer = () => {
               </div>
 
               <p className="mt-4 text-xs leading-5 text-slate-500">
-                Keep your study sessions consistent to
-                build a longer streak.
+                Keep your study sessions
+                consistent to build a longer
+                streak.
               </p>
             </div>
           </div>
@@ -995,7 +1624,7 @@ const StudyTimer = () => {
 
                 <h3 className="mt-2 text-2xl font-bold text-slate-900">
                   {formatDuration(
-                    todayStudySeconds
+                    todayStudySeconds,
                   )}
                 </h3>
 
@@ -1048,7 +1677,7 @@ const StudyTimer = () => {
 
                 <h3 className="mt-2 text-2xl font-bold text-slate-900">
                   {formatHours(
-                    totalDailyTargetHours
+                    totalDailyTargetHours,
                   )}
                 </h3>
 
@@ -1063,7 +1692,7 @@ const StudyTimer = () => {
             </div>
           </div>
 
-          {/* Remaining */}
+          {/* Daily Progress */}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
@@ -1105,30 +1734,48 @@ const StudyTimer = () => {
               </h2>
 
               <p className="mt-1 text-xs text-slate-500">
-                Your completed study sessions for today.
+                Your completed study sessions for
+                today.
               </p>
             </div>
 
             <div className="rounded-full bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700">
-              {todaySessions.length} completed
+              {todaySessions.length}{" "}
+              completed
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
 
-            {todaySessions.length === 0 && (
-              <div className="rounded-xl bg-slate-50 py-10 text-center">
-                <Clock3 className="mx-auto h-8 w-8 text-slate-300" />
+            {summaryLoading &&
+              todaySessions.length ===
+                0 && (
+                <div className="rounded-xl bg-slate-50 py-10 text-center">
+                  <span className="mx-auto block h-6 w-6 animate-spin rounded-full border-2 border-purple-200 border-t-purple-600" />
 
-                <p className="mt-3 text-sm font-medium text-slate-600">
-                  No completed sessions yet.
-                </p>
+                  <p className="mt-3 text-sm font-medium text-slate-600">
+                    Loading sessions...
+                  </p>
+                </div>
+              )}
 
-                <p className="mt-1 text-xs text-slate-400">
-                  Start your first study session today.
-                </p>
-              </div>
-            )}
+            {!summaryLoading &&
+              todaySessions.length ===
+                0 && (
+                <div className="rounded-xl bg-slate-50 py-10 text-center">
+                  <Clock3 className="mx-auto h-8 w-8 text-slate-300" />
+
+                  <p className="mt-3 text-sm font-medium text-slate-600">
+                    No completed sessions
+                    yet.
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-400">
+                    Start your first study
+                    session today.
+                  </p>
+                </div>
+              )}
 
             {todaySessions
               .slice()
@@ -1136,7 +1783,7 @@ const StudyTimer = () => {
               .map((session) => {
                 const punctuality =
                   getPunctualityLabel(
-                    session.punctuality
+                    session.punctuality,
                   );
 
                 return (
@@ -1148,7 +1795,7 @@ const StudyTimer = () => {
                       <div
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                           getSubjectStyle(
-                            session.subjectName
+                            session.subjectName,
                           ).icon
                         }`}
                       >
@@ -1157,16 +1804,18 @@ const StudyTimer = () => {
 
                       <div>
                         <h3 className="text-sm font-semibold text-slate-800">
-                          {session.subjectName}
+                          {
+                            session.subjectName
+                          }
                         </h3>
 
                         <p className="mt-1 text-xs text-slate-500">
                           {formatClockTime(
-                            session.startTime
+                            session.startTime,
                           )}{" "}
                           →{" "}
                           {formatClockTime(
-                            session.endTime
+                            session.endTime,
                           )}
                         </p>
                       </div>
@@ -1175,7 +1824,7 @@ const StudyTimer = () => {
                     <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                       <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">
                         {formatDuration(
-                          session.durationSeconds
+                          session.durationSeconds,
                         )}
                       </span>
 
@@ -1183,12 +1832,16 @@ const StudyTimer = () => {
                         <span
                           className={`rounded-full px-3 py-1.5 text-xs font-semibold ${punctuality.className}`}
                         >
-                          {punctuality.text}
+                          {
+                            punctuality.text
+                          }
                         </span>
                       )}
 
                       <span className="rounded-full bg-white px-3 py-1.5 text-xs text-slate-500">
-                        {session.reason}
+                        {
+                          session.reason
+                        }
                       </span>
                     </div>
                   </div>
@@ -1208,13 +1861,16 @@ const StudyTimer = () => {
 
                       <div>
                         <h3 className="text-sm font-semibold text-purple-900">
-                          {selectedSubject.name}
+                          {
+                            selectedSubject?.name ||
+                            "Study"
+                          }
                         </h3>
 
                         <p className="mt-1 text-xs text-purple-700">
                           Started at{" "}
                           {formatClockTime(
-                            startTime
+                            startTime,
                           )}
                         </p>
                       </div>
@@ -1222,7 +1878,7 @@ const StudyTimer = () => {
 
                     <span className="text-sm font-bold text-purple-700">
                       {formatTimer(
-                        liveSeconds
+                        liveSeconds,
                       )}
                     </span>
                   </div>
@@ -1242,120 +1898,137 @@ const StudyTimer = () => {
             </h2>
 
             <p className="mt-1 text-xs text-slate-500">
-              See how much time you have spent on each subject.
+              See how much time you have spent
+              on each subject.
             </p>
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            {subjects.map((subject) => {
-              const subjectSeconds =
-                todaySessions
-                  .filter(
-                    (session) =>
-                      session.subjectId ===
-                      subject.id
-                  )
-                  .reduce(
-                    (total, session) =>
-                      total +
-                      session.durationSeconds,
-                    0
-                  ) +
-                (isTimerRunning &&
-                selectedSubject.id ===
-                  subject.id
-                  ? liveSeconds
-                  : 0);
+            {subjects.map(
+              (subject) => {
+                const subjectSeconds =
+                  todaySessions
+                    .filter(
+                      (session) =>
+                        normalizeSubject(
+                          session.subjectName,
+                        ) ===
+                        normalizeSubject(
+                          subject.name,
+                        ),
+                    )
+                    .reduce(
+                      (
+                        total,
+                        session,
+                      ) =>
+                        total +
+                        session.durationSeconds,
+                      0,
+                    ) +
+                  (isTimerRunning &&
+                  selectedSubject?.id ===
+                    subject.id
+                    ? liveSeconds
+                    : 0);
 
-              const subjectTargetSeconds =
-                subject.targetHours *
-                3600;
+                const subjectTargetSeconds =
+                  subject.targetHours *
+                  3600;
 
-              const progress = Math.min(
-                100,
-                Math.round(
-                  (subjectSeconds /
-                    subjectTargetSeconds) *
-                    100
-                )
-              );
+                const progress =
+                  subjectTargetSeconds >
+                  0
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          (subjectSeconds /
+                            subjectTargetSeconds) *
+                            100,
+                        ),
+                      )
+                    : 0;
 
-              return (
-                <div
-                  key={subject.id}
-                  className="rounded-xl border border-slate-100 p-4"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                          getSubjectStyle(
-                            subject.name
-                          ).icon
-                        }`}
-                      >
-                        <span className="text-sm font-bold">
-                          {subject.name.charAt(
-                            0
-                          )}
-                        </span>
+                return (
+                  <div
+                    key={subject.id}
+                    className="rounded-xl border border-slate-100 p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                            getSubjectStyle(
+                              subject.name,
+                            ).icon
+                          }`}
+                        >
+                          <span className="text-sm font-bold">
+                            {subject.name.charAt(
+                              0,
+                            ).toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {
+                              subject.name
+                            }
+                          </p>
+
+                          <p className="text-xs text-slate-400">
+                            Target{" "}
+                            {formatHours(
+                              subject.targetHours,
+                            )}
+                          </p>
+                        </div>
                       </div>
 
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {subject.name}
-                        </p>
-
-                        <p className="text-xs text-slate-400">
-                          Target{" "}
-                          {formatHours(
-                            subject.targetHours
-                          )}
-                        </p>
-                      </div>
+                      <span className="text-sm font-bold text-purple-600">
+                        {progress}%
+                      </span>
                     </div>
 
-                    <span className="text-sm font-bold text-purple-600">
-                      {progress}%
-                    </span>
-                  </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${
+                          getSubjectStyle(
+                            subject.name,
+                          ).gradient
+                        }`}
+                        style={{
+                          width: `${progress}%`,
+                        }}
+                      />
+                    </div>
 
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className={`h-full rounded-full bg-gradient-to-r ${
-                        getSubjectStyle(
-                          subject.name
-                        ).gradient
-                      }`}
-                      style={{
-                        width: `${progress}%`,
-                      }}
-                    />
-                  </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
+                        {formatDuration(
+                          subjectSeconds,
+                        )}{" "}
+                        studied
+                      </span>
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">
-                      {formatDuration(
-                        subjectSeconds
-                      )}{" "}
-                      studied
-                    </span>
-
-                    <span className="text-xs font-medium text-slate-600">
-                      {progress >= 100
-                        ? "Target completed"
-                        : `${formatDuration(
-                            Math.max(
-                              0,
-                              subjectTargetSeconds -
-                                subjectSeconds
-                            )
-                          )} remaining`}
-                    </span>
+                      <span className="text-xs font-medium text-slate-600">
+                        {progress >=
+                        100
+                          ? "Target completed"
+                          : `${formatDuration(
+                              Math.max(
+                                0,
+                                subjectTargetSeconds -
+                                  subjectSeconds,
+                              ),
+                            )} remaining`}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              },
+            )}
           </div>
         </div>
 
@@ -1375,11 +2048,11 @@ const StudyTimer = () => {
               </h3>
 
               <p className="mt-1 text-xs leading-5 text-purple-700">
-                Your subjects and daily study targets come
-                from Daily Targets. This page records the
-                actual time you spend studying. Those sessions
-                can later be used by Subject Tracker and
-                Study Analytics.
+                Your study sessions are saved
+                automatically in the backend. This page
+                records the actual time you spend studying.
+                Those sessions can later be used by Subject
+                Tracker and Study Analytics.
               </p>
             </div>
           </div>
@@ -1409,8 +2082,13 @@ const StudyTimer = () => {
 
               <button
                 type="button"
-                onClick={handleCancelStop}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                onClick={
+                  handleCancelStop
+                }
+                disabled={
+                  stopLoading
+                }
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1433,12 +2111,13 @@ const StudyTimer = () => {
 
                 <p className="mt-1 text-2xl font-bold text-purple-900">
                   {formatTimer(
-                    elapsedSeconds
+                    elapsedSeconds,
                   )}
                 </p>
 
                 <p className="mt-1 text-xs text-purple-600">
-                  {selectedSubject.name}
+                  {selectedSubject?.name ||
+                    "Study"}
                 </p>
               </div>
 
@@ -1451,14 +2130,19 @@ const StudyTimer = () => {
 
                 <div className="relative">
                   <select
-                    value={stopReason}
+                    value={
+                      stopReason
+                    }
                     onChange={(e) =>
                       setStopReason(
-                        e.target.value
+                        e.target.value,
                       )
                     }
                     className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-3 pr-10 text-sm text-slate-700 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
                     required
+                    disabled={
+                      stopLoading
+                    }
                   >
                     <option value="">
                       Select a reason
@@ -1505,13 +2189,19 @@ const StudyTimer = () => {
 
                   <input
                     type="time"
-                    value={nextStartInput}
+                    value={
+                      nextStartInput
+                    }
                     onChange={(e) =>
                       setNextStartInput(
-                        e.target.value
+                        e.target.value,
                       )
                     }
+                    required
                     className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                    disabled={
+                      stopLoading
+                    }
                   />
                 </div>
 
@@ -1530,17 +2220,26 @@ const StudyTimer = () => {
                   onClick={
                     handleCancelStop
                   }
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  disabled={
+                    stopLoading
+                  }
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Continue Studying
                 </button>
 
                 <button
                   type="submit"
-                  disabled={!stopReason}
+                  disabled={
+                    !stopReason ||
+                    !nextStartInput ||
+                    stopLoading
+                  }
                   className="rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Save & Stop
+                  {stopLoading
+                    ? "Saving..."
+                    : "Save & Stop"}
                 </button>
               </div>
             </form>

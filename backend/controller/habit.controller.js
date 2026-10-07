@@ -147,6 +147,11 @@ const getHabits = async (req, res) => {
       return {
         _id: habit._id,
         name: habit.name,
+        reminder: habit.reminder,
+        category: habit.category,
+        description: habit.description,
+        frequency: habit.frequency,
+        startDate: habit.startDate,
         points: habit.points,
         isActive: habit.isActive,
         isCompleted: log ? log.isCompleted : false,
