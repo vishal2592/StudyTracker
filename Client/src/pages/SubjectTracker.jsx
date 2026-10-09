@@ -1,8 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
-  ArrowDown,
-  ArrowUp,
-  BarChart3,
+  Activity,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   ChevronDown,
@@ -10,1003 +14,2191 @@ import {
   Flame,
   Target,
   TrendingUp,
+  Trophy,
+  XCircle,
 } from "lucide-react";
 
-const SubjectTracker = () => {
-  // =====================================================
-  // DUMMY SUBJECT DATA
-  // Later this data will come from Daily Targets / Redux
-  // =====================================================
+import { useDispatch, useSelector } from "react-redux";
 
-  const [subjects] = useState([
+import { getSubjectTracker } from "../redux/slicer/subjectTrackerSlice";
+import { getStudySummary } from "../redux/slicer/studySlice";
+import { getTargets } from "../redux/slicer/dailyTargetSlice";
+
+
+// =====================================================
+// DATE HELPERS
+// =====================================================
+
+const getToday = () => {
+  const date = new Date();
+
+  const year = date.getFullYear();
+
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+
+  const day = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+
+// =====================================================
+// SUBJECT DISPLAY NAME
+// =====================================================
+
+const formatSubjectName = (subject = "") => {
+  return String(subject)
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\b\w/g, (char) =>
+      char.toUpperCase(),
+    );
+};
+
+
+// =====================================================
+// SUBJECT KEY
+// =====================================================
+
+const normalizeSubject = (subject = "") => {
+  return String(subject)
+    .trim()
+    .toLowerCase();
+};
+
+
+// =====================================================
+// FORMAT MINUTES
+// =====================================================
+
+const formatMinutes = (minutes = 0) => {
+  const value = Math.max(
+    0,
+    Number(minutes) || 0,
+  );
+
+  if (value === 0) {
+    return "0m";
+  }
+
+  const hours = Math.floor(
+    value / 60,
+  );
+
+  const mins = value % 60;
+
+  if (hours === 0) {
+    return `${mins}m`;
+  }
+
+  if (mins === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${mins}m`;
+};
+
+
+// =====================================================
+// FORMAT HOURS
+// =====================================================
+
+const formatHours = (hours = 0) => {
+  const value = Number(hours) || 0;
+
+  return formatMinutes(
+    Math.round(value * 60),
+  );
+};
+
+
+// =====================================================
+// FORMAT LAST STUDIED
+// =====================================================
+
+const formatLastStudied = (
+  dateString,
+) => {
+  if (!dateString) {
+    return "—";
+  }
+
+  const date = new Date(
+    dateString,
+  );
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleString(
+    "en-IN",
     {
-      id: 1,
-      name: "Mathematics",
-      description: "Algebra, Calculus, Geometry",
-      targetHours: 20,
-      studyHours: 16.5,
-      totalTargets: 14,
-      completedTargets: 11,
-      sessions: 9,
-      lastStudied: "Today",
-      streak: 5,
-      weeklyHours: [2, 3, 1.5, 2.5, 3, 2, 0.5],
-      topics: [
-        { name: "Algebra", completed: true },
-        { name: "Calculus", completed: true },
-        { name: "Geometry", completed: true },
-        { name: "Probability", completed: false },
-        { name: "Trigonometry", completed: false },
-      ],
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     },
-    {
-      id: 2,
-      name: "Physics",
-      description: "Mechanics, Electricity, Optics",
-      targetHours: 18,
-      studyHours: 11.5,
-      totalTargets: 12,
-      completedTargets: 8,
-      sessions: 7,
-      lastStudied: "Today",
-      streak: 3,
-      weeklyHours: [1, 2, 1.5, 2, 1, 2.5, 1.5],
-      topics: [
-        { name: "Mechanics", completed: true },
-        { name: "Current Electricity", completed: true },
-        { name: "Optics", completed: true },
-        { name: "Magnetism", completed: false },
-        { name: "Modern Physics", completed: false },
-      ],
-    },
-    {
-      id: 3,
-      name: "Chemistry",
-      description: "Organic, Inorganic, Physical",
-      targetHours: 16,
-      studyHours: 11.75,
-      totalTargets: 10,
-      completedTargets: 7,
-      sessions: 6,
-      lastStudied: "Yesterday",
-      streak: 4,
-      weeklyHours: [1.5, 2, 2.5, 1, 2, 1.5, 1.25],
-      topics: [
-        { name: "Organic Chemistry", completed: true },
-        { name: "Chemical Bonding", completed: true },
-        { name: "Thermodynamics", completed: true },
-        { name: "Equilibrium", completed: false },
-        { name: "Coordination Compounds", completed: false },
-      ],
-    },
-    {
-      id: 4,
-      name: "Biology",
-      description: "Human Physiology, Genetics, Ecology",
-      targetHours: 15,
-      studyHours: 12,
-      totalTargets: 9,
-      completedTargets: 8,
-      sessions: 8,
-      lastStudied: "Today",
-      streak: 7,
-      weeklyHours: [2, 1.5, 2, 2.5, 1.5, 1.5, 1],
-      topics: [
-        { name: "Human Physiology", completed: true },
-        { name: "Genetics", completed: true },
-        { name: "Ecology", completed: true },
-        { name: "Cell Biology", completed: true },
-        { name: "Evolution", completed: false },
-      ],
-    },
+  );
+};
+
+
+// =====================================================
+// COMPONENT
+// =====================================================
+
+const SubjectTracker = () => {
+  const dispatch = useDispatch();
+
+  // ===================================================
+  // LOCAL STATE
+  // ===================================================
+
+  const [selectedSubject, setSelectedSubject] =
+    useState("All Subjects");
+
+  const [sortBy, setSortBy] =
+    useState("Study Hours");
+
+
+  // ===================================================
+  // SUBJECT TRACKER REDUX
+  // ===================================================
+
+  const {
+    tracker,
+    loading: trackerLoading,
+    error: trackerError,
+  } = useSelector(
+    (state) =>
+      state.subjectTracker || {},
+  );
+
+
+  // ===================================================
+  // STUDY TIMER REDUX
+  // ===================================================
+
+  const {
+    summary,
+    summaryLoading,
+    error: summaryError,
+  } = useSelector(
+    (state) =>
+      state.study || {},
+  );
+
+
+  // ===================================================
+  // DAILY TARGET REDUX
+  // ===================================================
+
+  const {
+    targets = [],
+    totalTargets = 0,
+    completedTargets = 0,
+    pendingTargets = 0,
+    loading: targetLoading,
+    error: targetError,
+  } = useSelector(
+    (state) =>
+      state.dailyTarget || {},
+  );
+
+
+  // ===================================================
+  // TODAY
+  // ===================================================
+
+  const today = useMemo(
+    () => getToday(),
+    [],
+  );
+
+
+  // ===================================================
+  // FETCH TODAY'S DATA
+  // ===================================================
+
+  useEffect(() => {
+    // -----------------------------------------------
+    // Subject Tracker
+    // -----------------------------------------------
+
+    dispatch(
+      getSubjectTracker(today),
+    );
+
+    // -----------------------------------------------
+    // Study Timer Summary
+    // -----------------------------------------------
+
+    dispatch(
+      getStudySummary(today),
+    );
+
+    // -----------------------------------------------
+    // Daily Targets
+    // -----------------------------------------------
+
+    dispatch(
+      getTargets(today),
+    );
+  }, [
+    dispatch,
+    today,
   ]);
 
-  // =====================================================
-  // STATE
-  // =====================================================
 
-  const [selectedSubject, setSelectedSubject] = useState("all");
-  const [dateRange, setDateRange] = useState("This Month");
-  const [sortBy, setSortBy] = useState("progress");
+  // ===================================================
+  // DYNAMIC SUBJECTS
+  //
+  // Subjects are loaded from today's Daily Targets.
+  // ===================================================
 
-  // =====================================================
-  // CALCULATIONS
-  // =====================================================
-
-  const getProgress = (subject) => {
-    if (!subject.targetHours) return 0;
-
-    return Math.min(
-      100,
-      Math.round((subject.studyHours / subject.targetHours) * 100)
-    );
-  };
-
-  const getTargetCompletion = (subject) => {
-    if (!subject.totalTargets) return 0;
-
-    return Math.round(
-      (subject.completedTargets / subject.totalTargets) * 100
-    );
-  };
-
-  const totalStudyHours = useMemo(() => {
-    return subjects.reduce((sum, subject) => sum + subject.studyHours, 0);
-  }, [subjects]);
-
-  const totalTargets = useMemo(() => {
-    return subjects.reduce((sum, subject) => sum + subject.totalTargets, 0);
-  }, [subjects]);
-
-  const completedTargets = useMemo(() => {
-    return subjects.reduce(
-      (sum, subject) => sum + subject.completedTargets,
-      0
-    );
-  }, [subjects]);
-
-  const averageProgress = useMemo(() => {
-    if (!subjects.length) return 0;
-
-    const total = subjects.reduce(
-      (sum, subject) => sum + getProgress(subject),
-      0
-    );
-
-    return Math.round(total / subjects.length);
-  }, [subjects]);
-
-  const filteredSubjects = useMemo(() => {
-    let result =
-      selectedSubject === "all"
-        ? [...subjects]
-        : subjects.filter((subject) => subject.name === selectedSubject);
-
-    if (sortBy === "progress") {
-      result.sort((a, b) => getProgress(b) - getProgress(a));
+  const dynamicSubjects = useMemo(() => {
+    if (!Array.isArray(targets)) {
+      return [];
     }
 
-    if (sortBy === "hours") {
-      result.sort((a, b) => b.studyHours - a.studyHours);
-    }
+    const subjectMap = new Map();
 
-    if (sortBy === "targets") {
-      result.sort(
-        (a, b) =>
-          getTargetCompletion(b) -
-          getTargetCompletion(a)
-      );
-    }
+    targets.forEach((target) => {
+      const rawTitle =
+        String(
+          target?.title || "",
+        ).trim();
 
-    if (sortBy === "name") {
-      result.sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    return result;
-  }, [subjects, selectedSubject, sortBy]);
-
-  // =====================================================
-  // FORMAT HOURS
-  // =====================================================
-
-  const formatHours = (hours) => {
-    const wholeHours = Math.floor(hours);
-    const minutes = Math.round((hours - wholeHours) * 60);
-
-    if (minutes === 0) {
-      return `${wholeHours}h`;
-    }
-
-    return `${wholeHours}h ${minutes}m`;
-  };
-
-  // =====================================================
-  // SUBJECT COLORS
-  // =====================================================
-
-  const subjectStyles = {
-    Mathematics: {
-      icon: "bg-purple-100 text-purple-600",
-      progress: "from-purple-500 to-indigo-500",
-      light: "bg-purple-50",
-    },
-    Physics: {
-      icon: "bg-indigo-100 text-indigo-600",
-      progress: "from-indigo-500 to-blue-500",
-      light: "bg-indigo-50",
-    },
-    Chemistry: {
-      icon: "bg-blue-100 text-blue-600",
-      progress: "from-blue-500 to-cyan-500",
-      light: "bg-blue-50",
-    },
-    Biology: {
-      icon: "bg-emerald-100 text-emerald-600",
-      progress: "from-emerald-500 to-teal-500",
-      light: "bg-emerald-50",
-    },
-  };
-
-  const getSubjectStyle = (name) => {
-    return (
-      subjectStyles[name] || {
-        icon: "bg-purple-100 text-purple-600",
-        progress: "from-purple-500 to-indigo-500",
-        light: "bg-purple-50",
+      if (!rawTitle) {
+        return;
       }
-    );
-  };
 
-  // =====================================================
-  // WEEKLY TOTALS
-  // =====================================================
+      const key =
+        normalizeSubject(
+          rawTitle,
+        );
 
-  const weeklyTotals = useMemo(() => {
-    const totals = [0, 0, 0, 0, 0, 0, 0];
+      if (!key) {
+        return;
+      }
 
-    subjects.forEach((subject) => {
-      subject.weeklyHours.forEach((hours, index) => {
-        totals[index] += hours;
-      });
+      if (!subjectMap.has(key)) {
+        subjectMap.set(
+          key,
+          {
+            key,
+            name:
+              formatSubjectName(
+                rawTitle,
+              ),
+          },
+        );
+      }
     });
 
-    return totals;
-  }, [subjects]);
+    return Array.from(
+      subjectMap.values(),
+    );
+  }, [targets]);
 
-  const maxWeeklyHours = Math.max(...weeklyTotals, 1);
 
+  // ===================================================
+  // BUILD SUBJECT DATA
+  // ===================================================
+
+  const subjects = useMemo(() => {
+    // -------------------------------------------------
+    // BACKEND SUBJECT TRACKER DATA
+    //
+    // Controller now returns selected day's data only.
+    // -------------------------------------------------
+
+    const subjectWiseHours =
+      tracker?.subjectWiseHours ||
+      {};
+
+    const subjectWiseMinutes =
+      tracker?.subjectWise ||
+      {};
+
+
+    // -------------------------------------------------
+    // STUDY TIMER SESSIONS
+    //
+    // getStudySummary(today) returns today's sessions.
+    // -------------------------------------------------
+
+    const studySessions =
+      Array.isArray(
+        summary?.sessions,
+      )
+        ? summary.sessions
+        : [];
+
+
+    // -------------------------------------------------
+    // CREATE SESSION MAP
+    // -------------------------------------------------
+
+    const sessionMap = new Map();
+
+    dynamicSubjects.forEach(
+      (subject) => {
+        sessionMap.set(
+          subject.key,
+          {
+            sessions: 0,
+            todayMinutes: 0,
+            lastStudied: null,
+          },
+        );
+      },
+    );
+
+
+    // -------------------------------------------------
+    // ADD TODAY'S STUDY TIMER DATA
+    // -------------------------------------------------
+
+    studySessions.forEach(
+      (session) => {
+        const sessionSubject =
+          String(
+            session?.subject || "",
+          ).trim();
+
+        if (!sessionSubject) {
+          return;
+        }
+
+        const key =
+          normalizeSubject(
+            sessionSubject,
+          );
+
+        // Only subjects from today's targets
+        if (!sessionMap.has(key)) {
+          return;
+        }
+
+        const current =
+          sessionMap.get(key);
+
+        const durationMinutes =
+          Number(
+            session?.durationMinutes,
+          ) || 0;
+
+        current.sessions += 1;
+
+        current.todayMinutes +=
+          durationMinutes;
+
+        // Find latest session
+        if (
+          session?.startTime
+        ) {
+          if (
+            !current.lastStudied ||
+            new Date(
+              session.startTime,
+            ) >
+              new Date(
+                current.lastStudied,
+              )
+          ) {
+            current.lastStudied =
+              session.startTime;
+          }
+        }
+
+        sessionMap.set(
+          key,
+          current,
+        );
+      },
+    );
+
+
+    // -------------------------------------------------
+    // CREATE TARGET MAP
+    // -------------------------------------------------
+
+    const targetMap = new Map();
+
+    dynamicSubjects.forEach(
+      (subject) => {
+        targetMap.set(
+          subject.key,
+          {
+            totalTargets: 0,
+            completedTargets: 0,
+            targetMinutes: 0,
+          },
+        );
+      },
+    );
+
+
+    // -------------------------------------------------
+    // ADD TODAY'S DAILY TARGET DATA
+    // -------------------------------------------------
+
+    targets.forEach((target) => {
+      const rawTitle =
+        String(
+          target?.title || "",
+        ).trim();
+
+      if (!rawTitle) {
+        return;
+      }
+
+      const key =
+        normalizeSubject(
+          rawTitle,
+        );
+
+      if (!targetMap.has(key)) {
+        return;
+      }
+
+      const current =
+        targetMap.get(key);
+
+      current.totalTargets += 1;
+
+      current.targetMinutes +=
+        Number(
+          target?.durationMinutes,
+        ) || 0;
+
+      if (
+        target?.isCompleted === true
+      ) {
+        current.completedTargets +=
+          1;
+      }
+
+      targetMap.set(
+        key,
+        current,
+      );
+    });
+
+
+    // -------------------------------------------------
+    // FINAL SUBJECT OBJECTS
+    // -------------------------------------------------
+
+    return dynamicSubjects.map(
+      (subject) => {
+        const key =
+          subject.key;
+
+        const targetData =
+          targetMap.get(key) || {
+            totalTargets: 0,
+            completedTargets: 0,
+            targetMinutes: 0,
+          };
+
+        const sessionData =
+          sessionMap.get(key) || {
+            sessions: 0,
+            todayMinutes: 0,
+            lastStudied: null,
+          };
+
+
+        // ---------------------------------------------
+        // STUDY TIME
+        //
+        // New Subject Tracker Controller:
+        //
+        // subjectWise = minutes
+        // subjectWiseHours = hours
+        // ---------------------------------------------
+
+        const studyMinutes =
+          Number(
+            subjectWiseMinutes?.[
+              subject.name
+            ],
+          ) || 0;
+
+
+        const studyHours =
+          Number(
+            subjectWiseHours?.[
+              subject.name
+            ],
+          ) ||
+          studyMinutes / 60;
+
+
+        // ---------------------------------------------
+        // TARGET TIME
+        //
+        // Comes from Daily Target durationMinutes.
+        // ---------------------------------------------
+
+        const targetMinutes =
+          Number(
+            targetData.targetMinutes,
+          ) || 0;
+
+
+        // ---------------------------------------------
+        // PROGRESS
+        //
+        // Actual Study Time / Today's Target Time
+        // ---------------------------------------------
+
+        let progress = 0;
+
+        if (
+          targetMinutes > 0
+        ) {
+          progress = Math.round(
+            (studyMinutes /
+              targetMinutes) *
+              100,
+          );
+
+          progress =
+            Math.min(
+              progress,
+              100,
+            );
+        }
+
+
+        // ---------------------------------------------
+        // TARGET COMPLETION
+        // ---------------------------------------------
+
+        let targetCompletion = 0;
+
+        if (
+          targetData.totalTargets >
+          0
+        ) {
+          targetCompletion =
+            Math.round(
+              (targetData.completedTargets /
+                targetData.totalTargets) *
+                100,
+            );
+        }
+
+
+        // ---------------------------------------------
+        // REMAINING TIME
+        // ---------------------------------------------
+
+        const remainingMinutes =
+          Math.max(
+            targetMinutes -
+              studyMinutes,
+            0,
+          );
+
+
+        return {
+          id: key,
+
+          key,
+
+          name:
+            subject.name,
+
+          description:
+            `${subject.name} study and preparation`,
+
+          // -----------------------------------------
+          // STUDY TIMER
+          // -----------------------------------------
+
+          studyMinutes,
+
+          studyHours,
+
+          todayMinutes:
+            sessionData.todayMinutes,
+
+          sessions:
+            sessionData.sessions,
+
+          lastStudied:
+            sessionData.lastStudied,
+
+          // -----------------------------------------
+          // DAILY TARGET
+          // -----------------------------------------
+
+          targetMinutes,
+
+          targetHours:
+            targetMinutes / 60,
+
+          totalTargets:
+            targetData.totalTargets,
+
+          completedTargets:
+            targetData.completedTargets,
+
+          pendingTargets:
+            Math.max(
+              targetData.totalTargets -
+                targetData.completedTargets,
+              0,
+            ),
+
+          // -----------------------------------------
+          // PROGRESS
+          // -----------------------------------------
+
+          progress,
+
+          targetCompletion,
+
+          remainingMinutes,
+
+          // -----------------------------------------
+          // UI COMPATIBILITY
+          // -----------------------------------------
+
+          streak: 0,
+
+          weeklyHours: 0,
+
+          topics: [],
+        };
+      },
+    );
+  }, [
+    dynamicSubjects,
+    targets,
+    tracker,
+    summary,
+  ]);
+
+
+  // ===================================================
+  // FILTER + SORT
+  // ===================================================
+
+  const filteredSubjects =
+    useMemo(() => {
+      let result = [
+        ...subjects,
+      ];
+
+      // -----------------------------------------------
+      // SUBJECT FILTER
+      // -----------------------------------------------
+
+      if (
+        selectedSubject !==
+        "All Subjects"
+      ) {
+        result =
+          result.filter(
+            (subject) =>
+              subject.key ===
+              normalizeSubject(
+                selectedSubject,
+              ),
+          );
+      }
+
+
+      // -----------------------------------------------
+      // SORT
+      // -----------------------------------------------
+
+      switch (sortBy) {
+        case "Study Hours":
+          result.sort(
+            (a, b) =>
+              b.studyMinutes -
+              a.studyMinutes,
+          );
+          break;
+
+        case "Target Progress":
+          result.sort(
+            (a, b) =>
+              b.progress -
+              a.progress,
+          );
+          break;
+
+        case "Sessions":
+          result.sort(
+            (a, b) =>
+              b.sessions -
+              a.sessions,
+          );
+          break;
+
+        case "Last Studied":
+          result.sort(
+            (a, b) => {
+              if (
+                !a.lastStudied
+              ) {
+                return 1;
+              }
+
+              if (
+                !b.lastStudied
+              ) {
+                return -1;
+              }
+
+              return (
+                new Date(
+                  b.lastStudied,
+                ) -
+                new Date(
+                  a.lastStudied,
+                )
+              );
+            },
+          );
+          break;
+
+        default:
+          break;
+      }
+
+      return result;
+    }, [
+      subjects,
+      selectedSubject,
+      sortBy,
+    ]);
+
+
+  // ===================================================
+  // TOTAL STUDY
+  //
+  // Comes from new daily Subject Tracker controller.
+  // ===================================================
+
+  const totalStudyMinutes =
+    Number(
+      tracker?.totalStudyMinutes,
+    ) || 0;
+
+  const totalStudyHours =
+    Number(
+      tracker?.totalStudyHours,
+    ) ||
+    totalStudyMinutes / 60;
+
+
+  // ===================================================
+  // TOTAL TARGETS
+  //
+  // Comes directly from today's Daily Target API.
+  // ===================================================
+
+  const actualTotalTargets =
+    Number(totalTargets);
+
+  const actualCompletedTargets =
+    Number(completedTargets);
+
+  const actualPendingTargets =
+    Number(pendingTargets);
+
+
+  // ===================================================
+  // TARGET COMPLETION
+  // ===================================================
+
+  const targetCompletion =
+    actualTotalTargets > 0
+      ? Math.round(
+          (actualCompletedTargets /
+            actualTotalTargets) *
+            100,
+        )
+      : 0;
+
+
+  // ===================================================
+  // AVERAGE PROGRESS
+  //
+  // Daily study time vs daily target time.
   // =====================================================
+
+  const subjectsWithTargets =
+    subjects.filter(
+      (subject) =>
+        subject.targetMinutes >
+        0,
+    );
+
+  const averageProgress =
+    subjectsWithTargets.length >
+    0
+      ? Math.round(
+          subjectsWithTargets.reduce(
+            (sum, subject) =>
+              sum +
+              subject.progress,
+            0,
+          ) /
+            subjectsWithTargets.length,
+        )
+      : 0;
+
+
+  // ===================================================
+  // ACTIVE SUBJECTS
+  // ===================================================
+
+  const activeSubjects =
+    subjects.length;
+
+
+  // ===================================================
+  // BEST PERFORMING
+  // ===================================================
+
+  const bestSubject =
+    useMemo(() => {
+      if (!subjects.length) {
+        return null;
+      }
+
+      return [...subjects].sort(
+        (a, b) => {
+          if (
+            b.progress !==
+            a.progress
+          ) {
+            return (
+              b.progress -
+              a.progress
+            );
+          }
+
+          return (
+            b.studyMinutes -
+            a.studyMinutes
+          );
+        },
+      )[0];
+    }, [subjects]);
+
+
+  // ===================================================
+  // NEEDS MORE FOCUS
+  // ===================================================
+
+  const focusSubject =
+    useMemo(() => {
+      if (!subjects.length) {
+        return null;
+      }
+
+      return [...subjects].sort(
+        (a, b) => {
+          if (
+            a.progress !==
+            b.progress
+          ) {
+            return (
+              a.progress -
+              b.progress
+            );
+          }
+
+          return (
+            a.studyMinutes -
+            b.studyMinutes
+          );
+        },
+      )[0];
+    }, [subjects]);
+
+
+  // ===================================================
+  // LOADING
+  // ===================================================
+
+  const isLoading =
+    trackerLoading ||
+    summaryLoading ||
+    targetLoading;
+
+
+  // ===================================================
+  // ERROR
+  // ===================================================
+
+  const error =
+    trackerError ||
+    summaryError ||
+    targetError;
+
+
+  // ===================================================
   // RENDER
   // =====================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-1 sm:p-2 lg:p-3">
       <div className="mx-auto max-w-7xl">
+
         {/* =================================================
             HEADER
         ================================================= */}
 
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
-                <BarChart3 className="h-5 w-5 text-purple-600" />
+
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+                <BookOpen size={20} />
               </div>
 
-              <span className="text-sm font-semibold text-purple-600">
-                Performance Tracking
+              <div>
+
+                <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  Subject Tracker
+                </h1>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Track your study progress subject-wise
+                </p>
+
+              </div>
+
+            </div>
+          </div>
+
+
+          {/* TODAY */}
+
+          <div className="relative">
+
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+
+              <CalendarDays
+                size={18}
+                className="text-slate-500"
+              />
+
+              <span className="text-sm font-medium text-slate-700">
+                Today
               </span>
+
+              <ChevronDown
+                size={16}
+                className="text-slate-400"
+              />
+
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-              Subject Tracker
-            </h1>
-
-            <p className="mt-1 max-w-2xl text-sm text-slate-500 sm:text-base">
-              Track your study progress, targets, consistency and
-              performance subject by subject.
-            </p>
           </div>
 
-          {/* Date Range */}
-          <div className="relative">
-            <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
-            >
-              <option>This Week</option>
-              <option>This Month</option>
-              <option>Last Month</option>
-              <option>Last 3 Months</option>
-            </select>
-
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          </div>
         </div>
+
+
+        {/* =================================================
+            ERROR
+        ================================================= */}
+
+        {error && (
+          <div className="mb-3 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+
+            <XCircle
+              size={20}
+              className="mt-0.5 shrink-0"
+            />
+
+            <div>
+
+              <p className="font-medium">
+                Unable to load tracker data
+              </p>
+
+              <p className="mt-1 text-sm">
+                {error}
+              </p>
+
+            </div>
+
+          </div>
+        )}
+
 
         {/* =================================================
             SUMMARY CARDS
         ================================================= */}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {/* Total Study */}
+        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+          {/* TOTAL STUDY TIME */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Total Study Time
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {formatHours(totalStudyHours)}
+                  {isLoading
+                    ? "..."
+                    : formatHours(
+                        totalStudyHours,
+                      )}
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Across all subjects
+                <p className="mt-1 text-xs text-slate-400">
+                  {formatMinutes(
+                    totalStudyMinutes,
+                  )}{" "}
+                  today
                 </p>
+
               </div>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100">
-                <Clock3 className="h-5 w-5 text-purple-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <Clock3 size={21} />
               </div>
+
             </div>
+
           </div>
 
-          {/* Targets */}
+
+          {/* TARGET COMPLETION */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Target Completion
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {completedTargets}/{totalTargets}
+                  {isLoading
+                    ? "..."
+                    : `${targetCompletion}%`}
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Targets completed
+                <p className="mt-1 text-xs text-slate-400">
+                  {actualCompletedTargets}/
+                  {actualTotalTargets}{" "}
+                  targets
                 </p>
+
               </div>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100">
-                <Target className="h-5 w-5 text-indigo-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <Target size={21} />
               </div>
+
             </div>
+
           </div>
 
-          {/* Average Progress */}
+
+          {/* AVERAGE PROGRESS */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Average Progress
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {averageProgress}%
+                  {isLoading
+                    ? "..."
+                    : `${averageProgress}%`}
                 </h2>
 
-                <div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
-                    style={{ width: `${averageProgress}%` }}
-                  />
-                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  Today's study vs target
+                </p>
+
               </div>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100">
-                <TrendingUp className="h-5 w-5 text-purple-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <TrendingUp size={21} />
               </div>
+
             </div>
+
           </div>
 
-          {/* Subjects */}
+
+          {/* ACTIVE SUBJECTS */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
             <div className="flex items-start justify-between">
+
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Active Subjects
                 </p>
 
                 <h2 className="mt-2 text-2xl font-bold text-slate-900">
-                  {subjects.length}
+                  {isLoading
+                    ? "..."
+                    : activeSubjects}
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-500">
-                  Being tracked
+                <p className="mt-1 text-xs text-slate-400">
+                  Today's target subjects
                 </p>
+
               </div>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100">
-                <BarChart3 className="h-5 w-5 text-blue-600" />
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600">
+                <Activity size={21} />
               </div>
+
             </div>
+
           </div>
+
         </div>
+
 
         {/* =================================================
             FILTER BAR
         ================================================= */}
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
+
               <h2 className="font-semibold text-slate-900">
                 Subject Performance
               </h2>
 
-              <p className="mt-0.5 text-xs text-slate-500">
-                Compare your study performance across subjects.
+              <p className="mt-1 text-xs text-slate-500">
+                Today's study time and target progress
               </p>
+
             </div>
+
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              {/* Subject Filter */}
-              <div className="relative">
-                <select
-                  value={selectedSubject}
-                  onChange={(e) =>
-                    setSelectedSubject(e.target.value)
-                  }
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 sm:w-48"
-                >
-                  <option value="all">All Subjects</option>
 
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.name}>
-                      {subject.name}
-                    </option>
-                  ))}
+              {/* SUBJECT FILTER */}
+
+              <div className="relative">
+
+                <select
+                  value={
+                    selectedSubject
+                  }
+                  onChange={(e) =>
+                    setSelectedSubject(
+                      e.target.value,
+                    )
+                  }
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-48"
+                >
+
+                  <option value="All Subjects">
+                    All Subjects
+                  </option>
+
+                  {dynamicSubjects.map(
+                    (subject) => (
+                      <option
+                        key={
+                          subject.key
+                        }
+                        value={
+                          subject.name
+                        }
+                      >
+                        {subject.name}
+                      </option>
+                    ),
+                  )}
+
                 </select>
 
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <ChevronDown
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+
               </div>
 
-              {/* Sort */}
+
+              {/* SORT */}
+
               <div className="relative">
+
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-purple-400 focus:ring-2 focus:ring-purple-100 sm:w-44"
+                  onChange={(e) =>
+                    setSortBy(
+                      e.target.value,
+                    )
+                  }
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pr-9 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-48"
                 >
-                  <option value="progress">
-                    Highest Progress
+
+                  <option value="Study Hours">
+                    Study Hours
                   </option>
 
-                  <option value="hours">
-                    Most Study Hours
+                  <option value="Target Progress">
+                    Target Progress
                   </option>
 
-                  <option value="targets">
-                    Target Completion
+                  <option value="Sessions">
+                    Sessions
                   </option>
 
-                  <option value="name">
-                    Subject Name
+                  <option value="Last Studied">
+                    Last Studied
                   </option>
+
                 </select>
 
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <ChevronDown
+                  size={16}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+
               </div>
+
             </div>
+
           </div>
+
         </div>
+
 
         {/* =================================================
             MAIN CONTENT
         ================================================= */}
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+
           {/* =================================================
               SUBJECT LIST
           ================================================= */}
 
           <div className="space-y-4 xl:col-span-2">
-            {filteredSubjects.map((subject) => {
-              const progress = getProgress(subject);
-              const targetCompletion =
-                getTargetCompletion(subject);
 
-              const style = getSubjectStyle(subject.name);
+            {isLoading ? (
+              <>
+                {[1, 2, 3].map(
+                  (item) => (
+                    <div
+                      key={item}
+                      className="animate-pulse rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                    >
 
-              return (
-                <div
-                  key={subject.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  {/* Subject Header */}
+                      <div className="mb-5 h-6 w-40 rounded bg-slate-200" />
 
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${style.icon}`}
-                      >
-                        <span className="text-lg font-bold">
-                          {subject.name.charAt(0)}
-                        </span>
+                      <div className="mb-4 h-3 rounded bg-slate-200" />
+
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+                        <div className="h-12 rounded bg-slate-100" />
+
+                        <div className="h-12 rounded bg-slate-100" />
+
+                        <div className="h-12 rounded bg-slate-100" />
+
+                        <div className="h-12 rounded bg-slate-100" />
+
                       </div>
 
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900">
-                          {subject.name}
-                        </h3>
-
-                        <p className="mt-0.5 text-sm text-slate-500">
-                          {subject.description}
-                        </p>
-                      </div>
                     </div>
+                  ),
+                )}
+              </>
+            ) : filteredSubjects.length ===
+              0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
 
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600">
-                        <Flame className="h-3.5 w-3.5" />
-                        {subject.streak} day streak
-                      </div>
-                    </div>
-                  </div>
+                <BookOpen
+                  size={38}
+                  className="mx-auto text-slate-300"
+                />
 
-                  {/* Progress */}
-
-                  <div className="mt-5">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">
-                          Study Progress
-                        </span>
-
-                        <span className="ml-2 text-xs text-slate-400">
-                          {formatHours(subject.studyHours)} /{" "}
-                          {formatHours(subject.targetHours)}
-                        </span>
-                      </div>
-
-                      <span className="text-sm font-bold text-purple-600">
-                        {progress}%
-                      </span>
-                    </div>
-
-                    <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={`h-full rounded-full bg-gradient-to-r ${style.progress} transition-all duration-500`}
-                        style={{
-                          width: `${progress}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-
-                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">
-                        Targets
-                      </p>
-
-                      <p className="mt-1 text-sm font-bold text-slate-900">
-                        {subject.completedTargets}/
-                        {subject.totalTargets}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">
-                        Completion
-                      </p>
-
-                      <p className="mt-1 text-sm font-bold text-slate-900">
-                        {targetCompletion}%
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">
-                        Sessions
-                      </p>
-
-                      <p className="mt-1 text-sm font-bold text-slate-900">
-                        {subject.sessions}
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs text-slate-500">
-                        Last Studied
-                      </p>
-
-                      <p className="mt-1 text-sm font-bold text-slate-900">
-                        {subject.lastStudied}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Topics */}
-
-                  <div className="mt-5 border-t border-slate-100 pt-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-slate-800">
-                        Topics
-                      </h4>
-
-                      <span className="text-xs font-medium text-slate-500">
-                        {
-                          subject.topics.filter(
-                            (topic) => topic.completed
-                          ).length
-                        }{" "}
-                        / {subject.topics.length} completed
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {subject.topics.map((topic, index) => (
-                        <div
-                          key={index}
-                          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
-                            topic.completed
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {topic.completed ? (
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                          ) : (
-                            <span className="h-3.5 w-3.5 rounded-full border border-slate-300" />
-                          )}
-
-                          {topic.name}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {filteredSubjects.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center shadow-sm">
-                <BarChart3 className="mx-auto h-10 w-10 text-slate-300" />
-
-                <h3 className="mt-3 text-lg font-semibold text-slate-800">
-                  No subject data
+                <h3 className="mt-4 font-semibold text-slate-900">
+                  No targets for today
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  There is no tracking data for the selected subject.
+                  Create a Daily Target to see the subject here.
                 </p>
+
               </div>
+            ) : (
+              filteredSubjects.map(
+                (subject) => (
+                  <div
+                    key={
+                      subject.id
+                    }
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md sm:p-6"
+                  >
+
+                    {/* SUBJECT HEADER */}
+
+                    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+
+                      <div className="flex items-start gap-3">
+
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                          <BookOpen size={20} />
+                        </div>
+
+                        <div>
+
+                          <h3 className="text-lg font-bold text-slate-900">
+                            {
+                              subject.name
+                            }
+                          </h3>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            {
+                              subject.description
+                            }
+                          </p>
+
+                        </div>
+
+                      </div>
+
+
+                      {subject.sessions >
+                        0 && (
+                        <div className="flex w-fit items-center gap-1.5 rounded-full bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600">
+
+                          <Flame
+                            size={14}
+                          />
+
+                          Active
+
+                        </div>
+                      )}
+
+                    </div>
+
+
+                    {/* =================================================
+                        PROGRESS BAR
+                    ================================================= */}
+
+                    <div className="mb-6">
+
+                      <div className="mb-2 flex items-center justify-between">
+
+                        <div className="flex items-center gap-2">
+
+                          <Target
+                            size={16}
+                            className="text-blue-600"
+                          />
+
+                          <span className="text-sm font-medium text-slate-700">
+                            Study Progress
+                          </span>
+
+                        </div>
+
+                        <span className="text-sm font-bold text-slate-900">
+                          {
+                            subject.progress
+                          }
+                          %
+                        </span>
+
+                      </div>
+
+
+                      {/* BAR */}
+
+                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+
+                        <div
+                          className="h-full rounded-full bg-blue-600 transition-all duration-700"
+                          style={{
+                            width: `${subject.progress}%`,
+                          }}
+                        />
+
+                      </div>
+
+
+                      {/* STUDY VS TARGET */}
+
+                      <div className="mt-2 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+
+                        <span>
+                          Studied:{" "}
+                          <strong className="text-slate-700">
+                            {formatMinutes(
+                              subject.studyMinutes,
+                            )}
+                          </strong>
+                        </span>
+
+                        <span>
+                          Target:{" "}
+                          <strong className="text-slate-700">
+                            {formatMinutes(
+                              subject.targetMinutes,
+                            )}
+                          </strong>
+                        </span>
+
+                        <span>
+                          {subject.progress >=
+                          100
+                            ? "Target completed"
+                            : `${formatMinutes(
+                                subject.remainingMinutes,
+                              )} remaining`}
+                        </span>
+
+                      </div>
+
+
+                      {/* TARGET BADGES */}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                          Targets:{" "}
+                          {
+                            subject.totalTargets
+                          }
+                        </span>
+
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                          Completed:{" "}
+                          {
+                            subject.completedTargets
+                          }
+                        </span>
+
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                          Pending:{" "}
+                          {
+                            subject.pendingTargets
+                          }
+                        </span>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* =================================================
+                        STATS
+                    ================================================= */}
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+
+                      {/* STUDY TIME */}
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+
+                        <div className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+
+                          <Clock3
+                            size={14}
+                          />
+
+                          Study Time
+
+                        </div>
+
+                        <p className="font-bold text-slate-900">
+                          {formatMinutes(
+                            subject.studyMinutes,
+                          )}
+                        </p>
+
+                      </div>
+
+
+                      {/* SESSIONS */}
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+
+                        <div className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+
+                          <Activity
+                            size={14}
+                          />
+
+                          Sessions
+
+                        </div>
+
+                        <p className="font-bold text-slate-900">
+                          {
+                            subject.sessions
+                          }
+                        </p>
+
+                      </div>
+
+
+                      {/* TARGET */}
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+
+                        <div className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+
+                          <CheckCircle2
+                            size={14}
+                          />
+
+                          Target
+
+                        </div>
+
+                        <p className="font-bold text-slate-900">
+                          {
+                            subject.completedTargets
+                          }
+                          /
+                          {
+                            subject.totalTargets
+                          }
+                        </p>
+
+                      </div>
+
+
+                      {/* LAST STUDIED */}
+
+                      <div className="rounded-xl bg-slate-50 p-3">
+
+                        <div className="mb-1 flex items-center gap-1.5 text-xs text-slate-500">
+
+                          <CalendarDays
+                            size={14}
+                          />
+
+                          Last Studied
+
+                        </div>
+
+                        <p className="break-words text-sm font-bold text-slate-900">
+                          {subject.lastStudied
+                            ? formatLastStudied(
+                                subject.lastStudied,
+                              )
+                            : "—"}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* TODAY SESSION */}
+
+                    {subject.todayMinutes >
+                      0 && (
+                      <div className="mt-4 flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+
+                        <Clock3
+                          size={16}
+                        />
+
+                        <span>
+                          Today you studied{" "}
+                          <strong>
+                            {formatMinutes(
+                              subject.todayMinutes,
+                            )}
+                          </strong>{" "}
+                          in{" "}
+                          <strong>
+                            {
+                              subject.sessions
+                            }
+                          </strong>{" "}
+                          {subject.sessions ===
+                          1
+                            ? "session"
+                            : "sessions"}
+                          .
+                        </span>
+
+                      </div>
+                    )}
+
+                  </div>
+                ),
+              )
             )}
+
           </div>
+
 
           {/* =================================================
               RIGHT SIDEBAR
           ================================================= */}
 
-          <div className="space-y-6">
-            {/* Weekly Activity */}
+          <div className="space-y-4">
+
+            {/* DAILY OVERVIEW */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
+
+              <div className="mb-5 flex items-center justify-between">
+
                 <div>
-                  <h3 className="font-semibold text-slate-900">
-                    Weekly Activity
+
+                  <h3 className="font-bold text-slate-900">
+                    Today's Activity
                   </h3>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Total study time by day
+                    Study activity overview
                   </p>
+
                 </div>
 
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100">
-                  <BarChart3 className="h-4 w-4 text-purple-600" />
-                </div>
+                <Activity
+                  size={20}
+                  className="text-blue-600"
+                />
+
               </div>
 
-              <div className="mt-6 flex h-44 items-end justify-between gap-2">
-                {weeklyTotals.map((hours, index) => {
-                  const days = [
-                    "Mon",
-                    "Tue",
-                    "Wed",
-                    "Thu",
-                    "Fri",
-                    "Sat",
-                    "Sun",
-                  ];
 
-                  const height =
-                    (hours / maxWeeklyHours) * 100;
+              <div className="space-y-4">
 
-                  return (
-                    <div
-                      key={index}
-                      className="flex h-full flex-1 flex-col items-center justify-end"
-                    >
-                      <span className="mb-2 text-[10px] font-semibold text-slate-500">
-                        {hours}h
+                {/* STUDY */}
+
+                <div className="rounded-xl bg-blue-50 p-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <div className="flex items-center gap-2">
+
+                      <Clock3
+                        size={17}
+                        className="text-blue-600"
+                      />
+
+                      <span className="text-sm font-medium text-slate-700">
+                        Study Time
                       </span>
 
-                      <div className="flex h-28 w-full items-end justify-center">
-                        <div
-                          className="w-full max-w-7 rounded-t-lg bg-gradient-to-t from-purple-600 to-indigo-400 transition-all"
-                          style={{
-                            height: `${Math.max(height, 8)}%`,
-                          }}
-                        />
-                      </div>
-
-                      <span className="mt-2 text-[10px] font-medium text-slate-400">
-                        {days[index]}
-                      </span>
                     </div>
-                  );
-                })}
+
+                    <span className="font-bold text-blue-700">
+                      {formatMinutes(
+                        totalStudyMinutes,
+                      )}
+                    </span>
+
+                  </div>
+
+                </div>
+
+
+                {/* TARGET */}
+
+                <div className="rounded-xl bg-emerald-50 p-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <div className="flex items-center gap-2">
+
+                      <Target
+                        size={17}
+                        className="text-emerald-600"
+                      />
+
+                      <span className="text-sm font-medium text-slate-700">
+                        Targets
+                      </span>
+
+                    </div>
+
+                    <span className="font-bold text-emerald-700">
+                      {actualCompletedTargets}/
+                      {actualTotalTargets}
+                    </span>
+
+                  </div>
+
+                </div>
+
+
+                {/* SESSIONS */}
+
+                <div className="rounded-xl bg-violet-50 p-4">
+
+                  <div className="flex items-center justify-between">
+
+                    <div className="flex items-center gap-2">
+
+                      <Activity
+                        size={17}
+                        className="text-violet-600"
+                      />
+
+                      <span className="text-sm font-medium text-slate-700">
+                        Sessions
+                      </span>
+
+                    </div>
+
+                    <span className="font-bold text-violet-700">
+                      {Array.isArray(
+                        summary?.sessions,
+                      )
+                        ? summary.sessions.length
+                        : 0}
+                    </span>
+
+                  </div>
+
+                </div>
+
               </div>
+
             </div>
 
-            {/* Best Subject */}
+
+            {/* BEST PERFORMING */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+
+              <div className="mb-4 flex items-center gap-2">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                  <Trophy size={18} />
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-slate-900">
+
+                  <h3 className="font-bold text-slate-900">
                     Best Performing Subject
                   </h3>
 
                   <p className="text-xs text-slate-500">
-                    Based on current progress
+                    Based on today's study progress
                   </p>
+
                 </div>
+
               </div>
 
-              {subjects.length > 0 && (
-                <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                  {(() => {
-                    const bestSubject = [...subjects].sort(
-                      (a, b) => getProgress(b) - getProgress(a)
-                    )[0];
 
-                    return (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900">
-                            {bestSubject.name}
-                          </span>
+              {bestSubject ? (
+                <div>
 
-                          <span className="font-bold text-emerald-600">
-                            {getProgress(bestSubject)}%
-                          </span>
-                        </div>
+                  <div className="flex items-center justify-between">
 
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-                          <div
-                            className="h-full rounded-full bg-emerald-500"
-                            style={{
-                              width: `${getProgress(
-                                bestSubject
-                              )}%`,
-                            }}
-                          />
-                        </div>
+                    <span className="font-semibold text-slate-900">
+                      {
+                        bestSubject.name
+                      }
+                    </span>
 
-                        <p className="mt-3 text-xs text-slate-500">
-                          {formatHours(bestSubject.studyHours)}{" "}
-                          studied with{" "}
-                          {bestSubject.completedTargets}{" "}
-                          completed targets.
-                        </p>
-                      </>
-                    );
-                  })()}
+                    <span className="font-bold text-emerald-600">
+                      {
+                        bestSubject.progress
+                      }
+                      %
+                    </span>
+
+                  </div>
+
+
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{
+                        width: `${bestSubject.progress}%`,
+                      }}
+                    />
+
+                  </div>
+
+
+                  <p className="mt-3 text-xs text-slate-500">
+                    {formatMinutes(
+                      bestSubject.studyMinutes,
+                    )}{" "}
+                    studied ·{" "}
+                    {
+                      bestSubject.sessions
+                    }{" "}
+                    sessions
+                  </p>
+
                 </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No performance data yet.
+                </p>
               )}
+
             </div>
 
-            {/* Improvement Area */}
+
+            {/* NEEDS MORE FOCUS */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100">
-                  <ArrowUp className="h-5 w-5 text-orange-600" />
+
+              <div className="mb-4 flex items-center gap-2">
+
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-50 text-red-600">
+                  <Target size={18} />
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-slate-900">
+
+                  <h3 className="font-bold text-slate-900">
                     Needs More Focus
                   </h3>
 
                   <p className="text-xs text-slate-500">
-                    Subject with lowest progress
+                    Lowest study progress today
                   </p>
+
                 </div>
+
               </div>
 
-              {subjects.length > 0 && (
-                <div className="mt-5 rounded-xl bg-orange-50 p-4">
-                  {(() => {
-                    const weakSubject = [...subjects].sort(
-                      (a, b) => getProgress(a) - getProgress(b)
-                    )[0];
 
-                    return (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-slate-900">
-                            {weakSubject.name}
-                          </span>
+              {focusSubject ? (
+                <div>
 
-                          <span className="font-bold text-orange-600">
-                            {getProgress(weakSubject)}%
-                          </span>
-                        </div>
+                  <div className="flex items-center justify-between">
 
-                        <p className="mt-2 text-xs leading-5 text-slate-600">
-                          You have completed{" "}
-                          {weakSubject.completedTargets} of{" "}
-                          {weakSubject.totalTargets} targets.
-                          Consider giving this subject more
-                          study time.
-                        </p>
-                      </>
-                    );
-                  })()}
+                    <span className="font-semibold text-slate-900">
+                      {
+                        focusSubject.name
+                      }
+                    </span>
+
+                    <span className="font-bold text-red-600">
+                      {
+                        focusSubject.progress
+                      }
+                      %
+                    </span>
+
+                  </div>
+
+
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+
+                    <div
+                      className="h-full rounded-full bg-red-500"
+                      style={{
+                        width: `${focusSubject.progress}%`,
+                      }}
+                    />
+
+                  </div>
+
+
+                  <p className="mt-3 text-xs text-slate-500">
+                    {formatMinutes(
+                      focusSubject.remainingMinutes,
+                    )}{" "}
+                    remaining
+                  </p>
+
                 </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  No target data yet.
+                </p>
               )}
+
             </div>
+
           </div>
+
         </div>
+
 
         {/* =================================================
             SUBJECT COMPARISON
         ================================================= */}
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="font-semibold text-slate-900">
-                Subject Comparison
-              </h2>
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-              <p className="mt-1 text-xs text-slate-500">
-                Compare study hours and target completion.
-              </p>
-            </div>
+          <div className="border-b border-slate-200 p-5">
 
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-              <ArrowDown className="h-3.5 w-3.5" />
-              Sorted by performance
-            </div>
+            <h2 className="font-bold text-slate-900">
+              Subject Comparison
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Compare today's study time, targets and sessions
+            </p>
+
           </div>
 
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+
+          <div className="overflow-x-auto">
+
+            <table className="w-full min-w-[800px]">
+
               <thead>
-                <tr className="border-b border-slate-100 text-left">
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+
+                <tr className="border-b border-slate-200 bg-slate-50 text-left">
+
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Subject
                   </th>
 
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Study Time
                   </th>
 
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Targets
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Target
                   </th>
 
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Completion
-                  </th>
-
-                  <th className="pb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Progress
                   </th>
 
-                  <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Status
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Sessions
                   </th>
+
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Last Studied
+                  </th>
+
                 </tr>
+
               </thead>
 
-              <tbody>
-                {filteredSubjects.map((subject) => {
-                  const progress = getProgress(subject);
-                  const targetCompletion =
-                    getTargetCompletion(subject);
 
-                  return (
+              <tbody>
+
+                {subjects.map(
+                  (subject) => (
                     <tr
-                      key={subject.id}
-                      className="border-b border-slate-50 last:border-0"
+                      key={
+                        subject.id
+                      }
+                      className="border-b border-slate-100 last:border-b-0"
                     >
-                      <td className="py-4">
+
+                      {/* SUBJECT */}
+
+                      <td className="px-5 py-4">
+
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                              getSubjectStyle(subject.name).icon
-                            }`}
-                          >
-                            <span className="text-sm font-bold">
-                              {subject.name.charAt(0)}
-                            </span>
+
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+
+                            <BookOpen
+                              size={15}
+                            />
+
                           </div>
 
-                          <span className="text-sm font-semibold text-slate-800">
-                            {subject.name}
+                          <span className="font-semibold text-slate-900">
+                            {
+                              subject.name
+                            }
                           </span>
+
                         </div>
+
                       </td>
 
-                      <td className="py-4 text-sm text-slate-600">
-                        {formatHours(subject.studyHours)}
+
+                      {/* STUDY TIME */}
+
+                      <td className="px-5 py-4 text-sm font-medium text-slate-700">
+
+                        {formatMinutes(
+                          subject.studyMinutes,
+                        )}
+
                       </td>
 
-                      <td className="py-4 text-sm text-slate-600">
-                        {subject.completedTargets}/
-                        {subject.totalTargets}
+
+                      {/* TARGET */}
+
+                      <td className="px-5 py-4">
+
+                        <div className="text-sm text-slate-700">
+
+                          {
+                            subject.completedTargets
+                          }
+                          /
+                          {
+                            subject.totalTargets
+                          }
+
+                        </div>
+
+                        <div className="mt-1 text-xs text-slate-400">
+
+                          {formatMinutes(
+                            subject.targetMinutes,
+                          )}
+
+                        </div>
+
                       </td>
 
-                      <td className="py-4">
-                        <span className="text-sm font-semibold text-slate-700">
-                          {targetCompletion}%
-                        </span>
-                      </td>
 
-                      <td className="py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
+                      {/* PROGRESS */}
+
+                      <td className="px-5 py-4">
+
+                        <div className="flex min-w-[150px] items-center gap-3">
+
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+
                             <div
-                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500"
+                              className="h-full rounded-full bg-blue-600 transition-all duration-500"
                               style={{
-                                width: `${progress}%`,
+                                width: `${subject.progress}%`,
                               }}
                             />
+
                           </div>
 
-                          <span className="text-xs font-semibold text-slate-600">
-                            {progress}%
+                          <span className="text-xs font-bold text-slate-700">
+
+                            {
+                              subject.progress
+                            }
+                            %
+
                           </span>
+
                         </div>
+
                       </td>
 
-                      <td className="py-4 text-right">
-                        {progress >= 80 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            On Track
-                          </span>
-                        ) : progress >= 60 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-semibold text-purple-700">
-                            <TrendingUp className="h-3.5 w-3.5" />
-                            Improving
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700">
-                            <ArrowUp className="h-3.5 w-3.5" />
-                            Needs Focus
-                          </span>
-                        )}
+
+                      {/* SESSIONS */}
+
+                      <td className="px-5 py-4 text-sm font-medium text-slate-700">
+
+                        {
+                          subject.sessions
+                        }
+
                       </td>
+
+
+                      {/* LAST STUDIED */}
+
+                      <td className="px-5 py-4 text-sm text-slate-500">
+
+                        {subject.lastStudied
+                          ? formatLastStudied(
+                              subject.lastStudied,
+                            )
+                          : "—"}
+
+                      </td>
+
                     </tr>
-                  );
-                })}
+                  ),
+                )}
+
               </tbody>
+
             </table>
+
           </div>
+
         </div>
+
 
         {/* =================================================
             FOOTER NOTE
         ================================================= */}
 
-        <div className="mt-6 rounded-2xl border border-purple-100 bg-purple-50 p-4">
-          <div className="flex gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white">
-              <Target className="h-4 w-4 text-purple-600" />
+        <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 p-5">
+
+          <div className="flex items-start gap-3">
+
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+
+              <BookOpen size={18} />
+
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-purple-900">
+
+              <h3 className="font-semibold text-blue-900">
                 How Subject Tracker works
               </h3>
 
-              <p className="mt-1 text-xs leading-5 text-purple-700">
-                Subjects are tracked automatically from your Daily
-                Targets and study sessions. This page is only for
-                viewing your subject-wise performance — subjects are
-                not created or edited here.
+              <p className="mt-1 text-sm leading-6 text-blue-700">
+
+                Subjects are automatically loaded from today's
+                Daily Targets. Target duration comes from the
+                Daily Target API, while actual study time and
+                subject-wise study data come from the Subject
+                Tracker API. Sessions and Last Studied come from
+                today's Study Timer Summary. Study Progress is
+                calculated using today's actual study time against
+                today's target duration.
+
               </p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
     </div>
   );

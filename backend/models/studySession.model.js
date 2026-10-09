@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const studySessionSchema = new mongoose.Schema(
@@ -11,8 +10,8 @@ const studySessionSchema = new mongoose.Schema(
     },
     subject: {
       type: String,
-      enum: ["Biology", "Physics", "Chemistry", "Mock Test", "Other"],
       required: true,
+      trim: true,
     },
     startTime: {
       type: Date,
@@ -24,6 +23,11 @@ const studySessionSchema = new mongoose.Schema(
       default: null,
     },
     durationMinutes: {
+      type: Number,
+      default: 0,
+    },
+
+    durationSeconds: {
       type: Number,
       default: 0,
     },

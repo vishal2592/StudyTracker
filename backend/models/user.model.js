@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema(
       enum: ["user"],
       default: "user",
     },
+    neetExamDate: {
+      type: Date,
+      required: true,
+    },
   },
   { timestamps: true },
 );

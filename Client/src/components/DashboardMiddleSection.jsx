@@ -1,133 +1,84 @@
-import React, { useEffect, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   Clock,
   Play,
   Target,
-  CheckCircle2,
   Flame,
   X,
   Plus,
   Square,
+  Check,
 } from "lucide-react";
 
+import { useDispatch, useSelector } from "react-redux";
+
+import {
+  startStudy,
+  stopStudy,
+  getRunningStudy,
+  getStudySummary,
+} from "../redux/slicer/studySlice";
+
+import {
+  getTargets,
+  createTarget,
+  toggleTarget,
+} from "../redux/slicer/dailyTargetSlice";
+
+import {
+  getHabits,
+  toggleHabit,
+} from "../redux/slicer/habitSlice";
+
 const DashboardMiddleSection = ({
-  targets,
-  setTargets,
-  habits,
-  setHabits,
   onStudySessionComplete,
   onLiveStudySecondsChange,
   onPunctualityResult,
 }) => {
-  // =====================================================
-  // STUDY TIMER
-  // =====================================================
-
-  const [selectedSubject, setSelectedSubject] = useState("Biology");
-
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  const [startTime, setStartTime] = useState(null);
+  const dispatch = useDispatch();
 
   // =====================================================
-  // NEXT START TIME
-  // =====================================================
-  //
-  // Previous session ke Stop popup mein user jo
-  // next start time dega, woh yahan save rahega.
-  //
-  // Example:
-  // User says next start = 09:10 PM
-  // Next time Start click karega:
-  // 09:00 PM -> Early
-  // 09:10 PM -> On time
-  // 09:30 PM -> Late
+  // REDUX - STUDY
   // =====================================================
 
-  const [nextStartTime, setNextStartTime] = useState(null);
+  const {
+    currentSession,
+    isStudying,
+    startLoading,
+    stopLoading,
+    summary,
+  } = useSelector((state) => state.study);
 
   // =====================================================
-  // STOP STUDY MODAL
+  // REDUX - TARGETS
   // =====================================================
 
-  const [showStopModal, setShowStopModal] = useState(false);
-
-  const [stopReason, setStopReason] = useState("");
-
-  const [nextStartInput, setNextStartInput] = useState("");
-
-  // =====================================================
-  // SUBJECTS
-  // =====================================================
-
-  const subjects = [
-    "Biology",
-    "Physics",
-    "Chemistry",
-    "Mock Test",
-    "Other",
-  ];
+  const {
+    targets,
+    loading: targetsLoading,
+    createLoading: targetCreateLoading,
+    toggleLoading: targetToggleLoading,
+  } = useSelector((state) => state.dailyTarget);
 
   // =====================================================
-  // TIMER
+  // REDUX - HABITS
   // =====================================================
 
-  useEffect(() => {
-    if (!isTimerRunning || !startTime) {
-      return;
-    }
-
-    const updateTimer = () => {
-      const now = Date.now();
-
-      const seconds = Math.floor(
-        (now - startTime) / 1000
-      );
-
-      setElapsedSeconds(seconds);
-
-      // Send current running session time to Dashboard
-      if (onLiveStudySecondsChange) {
-        onLiveStudySecondsChange(seconds);
-      }
-    };
-
-    // Immediately update
-    updateTimer();
-
-    const timer = setInterval(updateTimer, 1000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [
-    isTimerRunning,
-    startTime,
-    onLiveStudySecondsChange,
-  ]);
+  const {
+    habits,
+    totalHabits,
+    completedHabits,
+    loading: habitsLoading,
+    toggleLoading: habitToggleLoading,
+  } = useSelector((state) => state.habit);
 
   // =====================================================
-  // FORMAT TIMER
-  // =====================================================
-
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-
-    const minutes = Math.floor(
-      (seconds % 3600) / 60
-    );
-
-    const secs = seconds % 60;
-
-    return `${String(hours).padStart(2, "0")}:${String(
-      minutes
-    ).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  };
-
-  // =====================================================
-  // GET TODAY DATE KEY
+  // DATE
   // =====================================================
 
   const getTodayKey = () => {
@@ -146,23 +97,465 @@ const DashboardMiddleSection = ({
     return `${year}-${month}-${day}`;
   };
 
+  const todayKey = getTodayKey();
+
   // =====================================================
-  // GET CURRENT TIME IN MINUTES
-  // =====================================================
-  //
-  // Used for comparing:
-  //
-  // Expected Start Time
-  // vs
-  // Actual Start Time
-  //
-  // Example:
-  // 09:10 PM -> 21 * 60 + 10
+  // FETCH TODAY'S DATA
   // =====================================================
 
-  const getTimeInMinutes = (date) => {
+  useEffect(() => {
+    dispatch(getTargets(todayKey));
+    dispatch(getHabits(todayKey));
+
+    // Get completed sessions.
+    // This gives Dashboard the already completed
+    // study time such as 30:27.
+    dispatch(getStudySummary(todayKey));
+
+    // Restore currently running backend session.
+    dispatch(getRunningStudy());
+  }, [dispatch, todayKey]);
+
+  // =====================================================
+  // STUDY TIMER
+  // =====================================================
+
+  const [selectedSubject, setSelectedSubject] =
+    useState("Biology");
+
+  /*
+   * This is ONLY the current running session time.
+   *
+   * Example:
+   * Previous completed = 30:27
+   * Current session = 00:15
+   *
+   * elapsedSeconds = 15
+   *
+   * Dashboard total =
+   * completedStudySeconds + elapsedSeconds
+   */
+  const [elapsedSeconds, setElapsedSeconds] =
+    useState(0);
+
+  const [startTime, setStartTime] =
+    useState(null);
+
+  const [isTimerRunning, setIsTimerRunning] =
+    useState(false);
+
+  // =====================================================
+  // NEXT START TIME
+  // =====================================================
+
+  const [nextStartTime, setNextStartTime] =
+    useState(null);
+
+  // =====================================================
+  // STOP STUDY MODAL
+  // =====================================================
+
+  const [showStopModal, setShowStopModal] =
+    useState(false);
+
+  const [stopReason, setStopReason] =
+    useState("");
+
+  const [nextStartInput, setNextStartInput] =
+    useState("");
+
+  // =====================================================
+  // LOAD MORE
+  // =====================================================
+
+  const [visibleTargetCount, setVisibleTargetCount] =
+    useState(5);
+
+  const [visibleHabitCount, setVisibleHabitCount] =
+    useState(5);
+
+  // =====================================================
+  // SUBJECTS
+  // =====================================================
+
+  const subjects = [
+    "Biology",
+    "Physics",
+    "Chemistry",
+    "Mock Test",
+    "Other",
+  ];
+
+  // =====================================================
+  // COMPLETED STUDY TIME
+  // =====================================================
+
+  /*
+   * IMPORTANT:
+   *
+   * Do NOT use summary.totalMinutes here.
+   *
+   * Backend response contains exact durationSeconds
+   * for every completed session.
+   *
+   * Example from your API:
+   *
+   * 587 + 234 + 98 + 137 + 15 + 16 + 705 + 16 + 19
+   * = 1827 seconds
+   * = 30m 27s
+   */
+
+  const completedStudySeconds = useMemo(() => {
+    if (!Array.isArray(summary?.sessions)) {
+      return 0;
+    }
+
+    return summary.sessions.reduce(
+      (total, session) => {
+        return (
+          total +
+          Number(
+            session.durationSeconds || 0
+          )
+        );
+      },
+      0
+    );
+  }, [summary]);
+
+  // =====================================================
+  // DASHBOARD TOTAL STUDY TIME
+  // =====================================================
+
+  /*
+   * STOPPED:
+   *
+   * completed = 30:27
+   * live = 0
+   *
+   * Dashboard = 30:27
+   *
+   * RUNNING:
+   *
+   * completed = 30:27
+   * live = 00:10
+   *
+   * Dashboard = 30:37
+   */
+
+  const totalStudySeconds =
+    completedStudySeconds +
+    (isTimerRunning
+      ? elapsedSeconds
+      : 0);
+
+  // =====================================================
+  // SYNC REDUX RUNNING STUDY
+  // =====================================================
+
+  useEffect(() => {
+    /*
+     * Backend Redux session is the source of truth.
+     *
+     * If StudyTimer page is running:
+     *
+     * currentSession.startTime
+     *          ↓
+     * Dashboard calculates live time
+     */
+
+    if (
+      isStudying &&
+      currentSession?.startTime
+    ) {
+      const sessionStartTime =
+        new Date(
+          currentSession.startTime
+        ).getTime();
+
+      if (
+        !Number.isNaN(
+          sessionStartTime
+        )
+      ) {
+        setStartTime(
+          sessionStartTime
+        );
+
+        setIsTimerRunning(
+          true
+        );
+
+        const currentElapsedSeconds =
+          Math.max(
+            0,
+            Math.floor(
+              (Date.now() -
+                sessionStartTime) /
+                1000
+            )
+          );
+
+        setElapsedSeconds(
+          currentElapsedSeconds
+        );
+
+        if (
+          onLiveStudySecondsChange
+        ) {
+          onLiveStudySecondsChange(
+            currentElapsedSeconds
+          );
+        }
+      }
+
+      // Sync subject
+
+      if (
+        currentSession?.subject
+      ) {
+        setSelectedSubject(
+          currentSession.subject
+        );
+      }
+
+      // Sync next start time
+
+      if (
+        currentSession?.nextStartTime
+      ) {
+        const backendNextStart =
+          new Date(
+            currentSession.nextStartTime
+          );
+
+        if (
+          !Number.isNaN(
+            backendNextStart.getTime()
+          )
+        ) {
+          const hours =
+            String(
+              backendNextStart.getHours()
+            ).padStart(
+              2,
+              "0"
+            );
+
+          const minutes =
+            String(
+              backendNextStart.getMinutes()
+            ).padStart(
+              2,
+              "0"
+            );
+
+          setNextStartTime(
+            `${hours}:${minutes}`
+          );
+        }
+      }
+
+      return;
+    }
+
+    /*
+     * No currently running backend session.
+     *
+     * IMPORTANT:
+     *
+     * We DO NOT touch completedStudySeconds.
+     *
+     * completedStudySeconds comes from summary.
+     *
+     * Therefore after stopping:
+     *
+     * elapsedSeconds = 0
+     * completedStudySeconds = 30:27
+     *
+     * Dashboard still shows 30:27.
+     */
+
+    if (!isStudying) {
+      setIsTimerRunning(false);
+      setStartTime(null);
+      setElapsedSeconds(0);
+
+      if (
+        onLiveStudySecondsChange
+      ) {
+        onLiveStudySecondsChange(0);
+      }
+    }
+  }, [
+    isStudying,
+    currentSession,
+    onLiveStudySecondsChange,
+  ]);
+
+  // =====================================================
+  // LIVE TIMER
+  // =====================================================
+
+  useEffect(() => {
+    if (
+      !isTimerRunning ||
+      !startTime
+    ) {
+      return;
+    }
+
+    const updateTimer = () => {
+      const now =
+        Date.now();
+
+      /*
+       * Always calculate from backend startTime.
+       *
+       * This means:
+       *
+       * Refresh
+       * Navigation
+       * Dashboard remount
+       *
+       * will NOT reset the running timer.
+       */
+
+      const seconds =
+        Math.max(
+          0,
+          Math.floor(
+            (now -
+              startTime) /
+              1000
+          )
+        );
+
+      setElapsedSeconds(
+        seconds
+      );
+
+      if (
+        onLiveStudySecondsChange
+      ) {
+        onLiveStudySecondsChange(
+          seconds
+        );
+      }
+    };
+
+    // Immediately calculate.
+
+    updateTimer();
+
+    const timer =
+      setInterval(
+        updateTimer,
+        1000
+      );
+
+    return () => {
+      clearInterval(
+        timer
+      );
+    };
+  }, [
+    isTimerRunning,
+    startTime,
+    onLiveStudySecondsChange,
+  ]);
+
+  // =====================================================
+  // FORMAT TIMER
+  // =====================================================
+
+  const formatTime = (seconds) => {
+    const safeSeconds =
+      Math.max(
+        0,
+        Number(seconds) || 0
+      );
+
+    const hours =
+      Math.floor(
+        safeSeconds /
+          3600
+      );
+
+    const minutes =
+      Math.floor(
+        (safeSeconds %
+          3600) /
+          60
+      );
+
+    const secs =
+      safeSeconds % 60;
+
+    return `${String(
+      hours
+    ).padStart(
+      2,
+      "0"
+    )}:${String(
+      minutes
+    ).padStart(
+      2,
+      "0"
+    )}:${String(
+      secs
+    ).padStart(
+      2,
+      "0"
+    )}`;
+  };
+
+  // =====================================================
+  // CONVERT TIME TO ISO
+  // =====================================================
+
+  const convertTimeToISO = (time) => {
+    if (!time) {
+      return null;
+    }
+
+    const [
+      hours,
+      minutes,
+    ] = time
+      .split(":")
+      .map(Number);
+
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes)
+    ) {
+      return null;
+    }
+
+    const date =
+      new Date();
+
+    date.setHours(
+      hours,
+      minutes,
+      0,
+      0
+    );
+
+    return date.toISOString();
+  };
+
+  // =====================================================
+  // GET TIME IN MINUTES
+  // =====================================================
+
+  const getTimeInMinutes = (
+    date
+  ) => {
     return (
-      date.getHours() * 60 +
+      date.getHours() *
+        60 +
       date.getMinutes()
     );
   };
@@ -171,307 +564,789 @@ const DashboardMiddleSection = ({
   // CHECK START PUNCTUALITY
   // =====================================================
 
-  const checkStartPunctuality = () => {
-    // First study session has no previous
-    // next start time.
-    if (!nextStartTime) {
-      return;
-    }
-
-    const now = new Date();
-
-    const actualMinutes =
-      getTimeInMinutes(now);
-
-    const [hours, minutes] =
-      nextStartTime.split(":").map(Number);
-
-    const expectedDate = new Date();
-
-    expectedDate.setHours(
-      hours,
-      minutes,
-      0,
-      0
-    );
-
-    const expectedMinutes =
-      getTimeInMinutes(expectedDate);
-
-    // =============================================
-    // EARLY
-    // =============================================
-
-    if (actualMinutes < expectedMinutes) {
-      if (onPunctualityResult) {
-        onPunctualityResult("early");
+  const checkStartPunctuality =
+    () => {
+      if (
+        !nextStartTime
+      ) {
+        return;
       }
 
-      return;
-    }
+      const now =
+        new Date();
 
-    // =============================================
-    // LATE
-    // =============================================
+      const actualMinutes =
+        getTimeInMinutes(
+          now
+        );
 
-    if (actualMinutes > expectedMinutes) {
-      if (onPunctualityResult) {
-        onPunctualityResult("late");
+      const [
+        hours,
+        minutes,
+      ] =
+        nextStartTime
+          .split(":")
+          .map(Number);
+
+      const expectedDate =
+        new Date();
+
+      expectedDate.setHours(
+        hours,
+        minutes,
+        0,
+        0
+      );
+
+      const expectedMinutes =
+        getTimeInMinutes(
+          expectedDate
+        );
+
+      if (
+        actualMinutes <
+        expectedMinutes
+      ) {
+        if (
+          onPunctualityResult
+        ) {
+          onPunctualityResult(
+            "early"
+          );
+        }
+
+        return;
       }
 
-      return;
-    }
+      if (
+        actualMinutes >
+        expectedMinutes
+      ) {
+        if (
+          onPunctualityResult
+        ) {
+          onPunctualityResult(
+            "late"
+          );
+        }
 
-    // =============================================
-    // EXACT
-    // =============================================
+        return;
+      }
 
-    if (onPunctualityResult) {
-      onPunctualityResult("on-time");
-    }
-  };
+      if (
+        onPunctualityResult
+      ) {
+        onPunctualityResult(
+          "on-time"
+        );
+      }
+    };
 
   // =====================================================
   // START STUDY
   // =====================================================
 
-  const handleStartTimer = () => {
-    if (isTimerRunning) {
-      return;
-    }
+  const handleStartTimer =
+    async () => {
+      if (
+        isTimerRunning ||
+        startLoading
+      ) {
+        return;
+      }
 
-    // Check whether user is early,
-    // on-time or late compared to
-    // previous session's next start time.
-    checkStartPunctuality();
+      checkStartPunctuality();
 
-    const now = Date.now();
+      try {
+        const result =
+          await dispatch(
+            startStudy({
+              subject:
+                selectedSubject,
+            })
+          ).unwrap();
 
-    setStartTime(now);
+        const backendStartTime =
+          result?.studySession
+            ?.startTime ||
+          result?.session
+            ?.startTime ||
+          result?.startTime ||
+          null;
 
-    setElapsedSeconds(0);
+        let sessionStartTime =
+          backendStartTime
+            ? new Date(
+                backendStartTime
+              ).getTime()
+            : Date.now();
 
-    if (onLiveStudySecondsChange) {
-      onLiveStudySecondsChange(0);
-    }
+        if (
+          Number.isNaN(
+            sessionStartTime
+          )
+        ) {
+          sessionStartTime =
+            Date.now();
+        }
 
-    setIsTimerRunning(true);
-  };
+        setStartTime(
+          sessionStartTime
+        );
+
+        const initialSeconds =
+          Math.max(
+            0,
+            Math.floor(
+              (Date.now() -
+                sessionStartTime) /
+                1000
+            )
+          );
+
+        setElapsedSeconds(
+          initialSeconds
+        );
+
+        if (
+          onLiveStudySecondsChange
+        ) {
+          onLiveStudySecondsChange(
+            initialSeconds
+          );
+        }
+
+        setIsTimerRunning(
+          true
+        );
+
+        // Sync subject
+
+        const backendSubject =
+          result?.studySession
+            ?.subject ||
+          result?.session
+            ?.subject ||
+          result?.subject ||
+          null;
+
+        if (
+          backendSubject
+        ) {
+          setSelectedSubject(
+            backendSubject
+          );
+        }
+
+        // Sync next start time
+
+        const backendNextStart =
+          result?.studySession
+            ?.nextStartTime ||
+          result?.session
+            ?.nextStartTime ||
+          result?.nextStartTime ||
+          null;
+
+        if (
+          backendNextStart
+        ) {
+          const nextDate =
+            new Date(
+              backendNextStart
+            );
+
+          if (
+            !Number.isNaN(
+              nextDate.getTime()
+            )
+          ) {
+            const hours =
+              String(
+                nextDate.getHours()
+              ).padStart(
+                2,
+                "0"
+              );
+
+            const minutes =
+              String(
+                nextDate.getMinutes()
+              ).padStart(
+                2,
+                "0"
+              );
+
+            setNextStartTime(
+              `${hours}:${minutes}`
+            );
+          }
+        }
+
+        /*
+         * Refresh running study.
+         *
+         * This keeps Redux synchronized with backend.
+         */
+
+        await dispatch(
+          getRunningStudy()
+        );
+      } catch (error) {
+        console.error(
+          "Start study error:",
+          error
+        );
+
+        dispatch(
+          getRunningStudy()
+        );
+      }
+    };
 
   // =====================================================
   // OPEN STOP MODAL
   // =====================================================
 
-  const handleStopTimer = () => {
-    if (!isTimerRunning || !startTime) {
-      return;
-    }
+  const handleStopTimer =
+    () => {
+      if (
+        !isTimerRunning ||
+        !startTime ||
+        stopLoading
+      ) {
+        return;
+      }
 
-    const finalSeconds = Math.floor(
-      (Date.now() - startTime) / 1000
-    );
+      const finalSeconds =
+        Math.max(
+          0,
+          Math.floor(
+            (Date.now() -
+              startTime) /
+              1000
+          )
+        );
 
-    setElapsedSeconds(finalSeconds);
+      setElapsedSeconds(
+        finalSeconds
+      );
 
-    // Keep final live time until session is saved.
-    if (onLiveStudySecondsChange) {
-      onLiveStudySecondsChange(finalSeconds);
-    }
+      if (
+        onLiveStudySecondsChange
+      ) {
+        onLiveStudySecondsChange(
+          finalSeconds
+        );
+      }
 
-    // Open popup.
-    setShowStopModal(true);
-  };
+      setShowStopModal(
+        true
+      );
+    };
 
   // =====================================================
-  // CONFIRM STOP / SAVE SESSION
+  // CONFIRM STOP
   // =====================================================
 
-  const handleConfirmStop = (e) => {
-    e.preventDefault();
+  const handleConfirmStop =
+    async (e) => {
+      e.preventDefault();
 
-    if (!stopReason.trim()) {
-      return;
-    }
+      if (
+        !stopReason.trim()
+      ) {
+        return;
+      }
 
-    if (!nextStartInput) {
-      return;
-    }
+      if (
+        !nextStartInput
+      ) {
+        return;
+      }
 
-    if (!startTime) {
-      return;
-    }
+      if (!startTime) {
+        return;
+      }
 
-    const endTime = Date.now();
+      const plannedNextStartTime =
+        convertTimeToISO(
+          nextStartInput
+        );
 
-    const finalSeconds = Math.floor(
-      (endTime - startTime) / 1000
-    );
+      if (
+        !plannedNextStartTime
+      ) {
+        return;
+      }
 
-    const dateKey = getTodayKey();
+      const endTime =
+        Date.now();
 
-    // =================================================
-    // SEND COMPLETED SESSION TO DASHBOARD
-    // =================================================
+      const finalSeconds =
+        Math.max(
+          0,
+          Math.floor(
+            (endTime -
+              startTime) /
+              1000
+          )
+        );
 
-    if (onStudySessionComplete) {
-      onStudySessionComplete({
-        dateKey,
-        durationSeconds: finalSeconds,
-        subject: selectedSubject,
-        startTime,
-        endTime,
-        reason: stopReason.trim(),
-        nextStartTime: nextStartInput,
-      });
-    }
+      try {
+        const sessionId =
+          currentSession?._id ||
+          currentSession?.id ||
+          null;
 
-    // =================================================
-    // SAVE NEXT START TIME
-    // =================================================
+        const stopPayload = {
+          ...(sessionId
+            ? {
+                sessionId,
+              }
+            : {}),
 
-    setNextStartTime(nextStartInput);
+          stopReason:
+            stopReason.trim(),
 
-    // =================================================
-    // RESET CURRENT SESSION
-    // =================================================
+          nextStartTime:
+            plannedNextStartTime,
+        };
 
-    setIsTimerRunning(false);
+        const result =
+          await dispatch(
+            stopStudy(
+              stopPayload
+            )
+          ).unwrap();
 
-    setStartTime(null);
+        // =================================================
+        // SEND COMPLETED SESSION TO PARENT
+        // =================================================
 
-    setElapsedSeconds(0);
+        if (
+          onStudySessionComplete
+        ) {
+          onStudySessionComplete({
+            dateKey:
+              todayKey,
 
-    if (onLiveStudySecondsChange) {
-      onLiveStudySecondsChange(0);
-    }
+            durationSeconds:
+              finalSeconds,
 
-    // =================================================
-    // RESET MODAL
-    // =================================================
+            subject:
+              selectedSubject,
 
-    setStopReason("");
+            startTime,
 
-    setNextStartInput("");
+            endTime,
 
-    setShowStopModal(false);
-  };
+            reason:
+              stopReason.trim(),
+
+            nextStartTime:
+              nextStartInput,
+
+            backendResponse:
+              result,
+          });
+        }
+
+        // =================================================
+        // SAVE NEXT START TIME
+        // =================================================
+
+        setNextStartTime(
+          nextStartInput
+        );
+
+        /*
+         * IMPORTANT:
+         *
+         * First refresh summary.
+         *
+         * Backend now contains the stopped session.
+         *
+         * Example:
+         *
+         * Before stop:
+         * completed = 00:00
+         * current = 30:27
+         *
+         * After stop:
+         * completed = 30:27
+         * current = 00:00
+         *
+         * Dashboard therefore stays:
+         * 30:27
+         */
+
+        await dispatch(
+          getStudySummary(
+            todayKey
+          )
+        ).unwrap();
+
+        // Refresh running session
+
+        await dispatch(
+          getRunningStudy()
+        ).unwrap();
+
+        // Refresh targets
+
+        dispatch(
+          getTargets(
+            todayKey
+          )
+        );
+
+        // Refresh habits
+
+        dispatch(
+          getHabits(
+            todayKey
+          )
+        );
+
+        // =================================================
+        // RESET LIVE SESSION ONLY
+        // =================================================
+
+        setIsTimerRunning(
+          false
+        );
+
+        setStartTime(
+          null
+        );
+
+        /*
+         * This resets ONLY current session time.
+         *
+         * completedStudySeconds is now 30:27
+         * from the refreshed summary.
+         *
+         * So Dashboard display remains 30:27.
+         */
+
+        setElapsedSeconds(
+          0
+        );
+
+        if (
+          onLiveStudySecondsChange
+        ) {
+          onLiveStudySecondsChange(
+            0
+          );
+        }
+
+        // =================================================
+        // RESET MODAL
+        // =================================================
+
+        setStopReason("");
+
+        setNextStartInput("");
+
+        setShowStopModal(
+          false
+        );
+      } catch (error) {
+        console.error(
+          "Stop study error:",
+          error
+        );
+      }
+    };
 
   // =====================================================
   // CANCEL STOP MODAL
   // =====================================================
-  //
-  // Important:
-  // Agar user popup close/cancel karta hai,
-  // timer STOP nahi hoga.
-  //
-  // Study session abhi bhi running rahega.
-  // =====================================================
 
-  const handleCancelStop = () => {
-    setShowStopModal(false);
+  const handleCancelStop =
+    () => {
+      setShowStopModal(
+        false
+      );
 
-    setStopReason("");
+      setStopReason("");
 
-    setNextStartInput("");
-  };
+      setNextStartInput("");
+    };
 
   // =====================================================
   // SUBJECT CHANGE
   // =====================================================
 
-  const handleSubjectChange = (subject) => {
-    if (isTimerRunning) {
-      return;
-    }
+  const handleSubjectChange =
+    (subject) => {
+      if (
+        isTimerRunning
+      ) {
+        return;
+      }
 
-    setSelectedSubject(subject);
+      setSelectedSubject(
+        subject
+      );
 
-    setElapsedSeconds(0);
-  };
+      /*
+       * Do NOT change completedStudySeconds.
+       *
+       * Changing subject must not reset
+       * today's overall study time.
+       */
+
+      setElapsedSeconds(0);
+    };
 
   // =====================================================
-  // TOGGLE TARGET
+  // TARGET TOGGLE
   // =====================================================
 
-  const handleTargetToggle = (id) => {
-    setTargets((prevTargets) =>
-      prevTargets.map((target) =>
-        target.id === id
-          ? {
-              ...target,
-              completed: !target.completed,
-            }
-          : target
-      )
-    );
-  };
+  const handleTargetToggle =
+    async (id) => {
+      if (
+        targetToggleLoading
+      ) {
+        return;
+      }
+
+      try {
+        await dispatch(
+          toggleTarget(id)
+        ).unwrap();
+
+        dispatch(
+          getTargets(
+            todayKey
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Target toggle error:",
+          error
+        );
+      }
+    };
 
   // =====================================================
   // ADD TARGET MODAL
   // =====================================================
 
-  const [showTargetModal, setShowTargetModal] =
-    useState(false);
+  const [
+    showTargetModal,
+    setShowTargetModal,
+  ] = useState(false);
 
-  const [targetTitle, setTargetTitle] =
-    useState("");
+  const [
+    targetTitle,
+    setTargetTitle,
+  ] = useState("");
 
-  const [targetDuration, setTargetDuration] =
-    useState("");
+  const [
+    targetDuration,
+    setTargetDuration,
+  ] = useState("");
 
   // =====================================================
   // ADD TARGET
   // =====================================================
 
-  const handleAddTarget = (e) => {
-    e.preventDefault();
+  const handleAddTarget =
+    async (e) => {
+      e.preventDefault();
 
-    if (
-      !targetTitle.trim() ||
-      !targetDuration.trim()
-    ) {
-      return;
-    }
+      if (
+        !targetTitle.trim() ||
+        !targetDuration.trim()
+      ) {
+        return;
+      }
 
-    const newTarget = {
-      id: Date.now(),
-      title: targetTitle.trim(),
-      duration: targetDuration.trim(),
-      completed: false,
+      const parseDurationMinutes =
+        (value) => {
+          const text =
+            value
+              .trim()
+              .toLowerCase();
+
+          const hourMatch =
+            text.match(
+              /(\d+(?:\.\d+)?)\s*(hour|hours|hr|hrs|h)/
+            );
+
+          if (
+            hourMatch
+          ) {
+            return Math.round(
+              Number(
+                hourMatch[1]
+              ) * 60
+            );
+          }
+
+          const minuteMatch =
+            text.match(
+              /(\d+(?:\.\d+)?)\s*(minute|minutes|min|mins|m)/
+            );
+
+          if (
+            minuteMatch
+          ) {
+            return Math.round(
+              Number(
+                minuteMatch[1]
+              )
+            );
+          }
+
+          const number =
+            Number(text);
+
+          if (
+            Number.isFinite(
+              number
+            ) &&
+            number > 0
+          ) {
+            return Math.round(
+              number
+            );
+          }
+
+          return 0;
+        };
+
+      const durationMinutes =
+        parseDurationMinutes(
+          targetDuration
+        );
+
+      if (
+        durationMinutes <=
+        0
+      ) {
+        return;
+      }
+
+      try {
+        await dispatch(
+          createTarget({
+            title:
+              targetTitle.trim(),
+
+            durationMinutes,
+
+            date: todayKey,
+          })
+        ).unwrap();
+
+        dispatch(
+          getTargets(
+            todayKey
+          )
+        );
+
+        setTargetTitle("");
+
+        setTargetDuration("");
+
+        setShowTargetModal(
+          false
+        );
+      } catch (error) {
+        console.error(
+          "Create target error:",
+          error
+        );
+      }
     };
 
-    setTargets((prevTargets) => [
-      ...prevTargets,
-      newTarget,
-    ]);
-
-    setTargetTitle("");
-
-    setTargetDuration("");
-
-    setShowTargetModal(false);
-  };
-
   // =====================================================
-  // TOGGLE HABIT
+  // HABIT TOGGLE
   // =====================================================
 
-  const handleHabitToggle = (id) => {
-    setHabits((prevHabits) =>
-      prevHabits.map((habit) =>
-        habit.id === id
-          ? {
-              ...habit,
-              completed: !habit.completed,
-            }
-          : habit
-      )
+  const handleHabitToggle =
+    async (id) => {
+      if (
+        habitToggleLoading
+      ) {
+        return;
+      }
+
+      try {
+        await dispatch(
+          toggleHabit({
+            id,
+            date: todayKey,
+          })
+        ).unwrap();
+
+        dispatch(
+          getHabits(
+            todayKey
+          )
+        );
+      } catch (error) {
+        console.error(
+          "Habit toggle error:",
+          error
+        );
+      }
+    };
+
+  // =====================================================
+  // SAFE DATA
+  // =====================================================
+
+  const safeTargets =
+    Array.isArray(targets)
+      ? targets
+      : [];
+
+  const safeHabits =
+    Array.isArray(habits)
+      ? habits
+      : [];
+
+  const safeCompletedHabits =
+    Number(
+      completedHabits
+    ) || 0;
+
+  const safeTotalHabits =
+    Number(
+      totalHabits
+    ) ||
+    safeHabits.length;
+
+  // =====================================================
+  // VISIBLE TARGETS / HABITS
+  // =====================================================
+
+  const visibleTargets =
+    safeTargets.slice(
+      0,
+      visibleTargetCount
     );
-  };
 
-  const completedHabits = habits.filter(
-    (habit) => habit.completed
-  ).length;
+  const visibleHabits =
+    safeHabits.slice(
+      0,
+      visibleHabitCount
+    );
+
+  // =====================================================
+  // RESET LOAD MORE WHEN DATE CHANGES
+  // =====================================================
+
+  useEffect(() => {
+    setVisibleTargetCount(5);
+    setVisibleHabitCount(5);
+  }, [todayKey]);
 
   // =====================================================
   // UI
@@ -480,15 +1355,17 @@ const DashboardMiddleSection = ({
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
         {/* =====================================================
             STUDY TIMER
         ===================================================== */}
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-          {/* Header */}
 
           <div className="flex items-center justify-between mb-5">
+
             <div className="flex items-center gap-3">
+
               <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                 <Clock
                   size={21}
@@ -507,72 +1384,91 @@ const DashboardMiddleSection = ({
                     : "Track your study time"}
                 </p>
               </div>
+
             </div>
 
             {isTimerRunning && (
               <div className="flex items-center gap-1.5">
+
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
 
                 <span className="text-xs font-semibold text-emerald-600">
                   Running
                 </span>
+
               </div>
             )}
+
           </div>
 
-          {/* Subject Selection */}
+          {/* SUBJECT */}
 
           <div className="mb-5">
+
             <p className="text-xs font-semibold text-slate-500 mb-2">
               Select Subject
             </p>
 
             <div className="flex flex-wrap gap-2">
-              {subjects.map((subject) => {
-                const isSelected =
-                  selectedSubject === subject;
 
-                return (
-                  <button
-                    key={subject}
-                    type="button"
-                    onClick={() =>
-                      handleSubjectChange(subject)
-                    }
-                    disabled={isTimerRunning}
-                    className={`
-                      px-3 py-1.5 rounded-lg text-xs font-semibold
-                      border transition-all
-                      ${
-                        isSelected
-                          ? "bg-blue-500 text-white border-blue-500"
-                          : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-500"
+              {subjects.map(
+                (subject) => {
+                  const isSelected =
+                    selectedSubject ===
+                    subject;
+
+                  return (
+                    <button
+                      key={subject}
+                      type="button"
+                      onClick={() =>
+                        handleSubjectChange(
+                          subject
+                        )
                       }
-                      ${
-                        isTimerRunning
-                          ? "cursor-not-allowed opacity-70"
-                          : ""
+                      disabled={
+                        isTimerRunning ||
+                        startLoading
                       }
-                    `}
-                  >
-                    {subject}
-                  </button>
-                );
-              })}
+                      className={`
+                        px-3 py-1.5 rounded-lg text-xs font-semibold
+                        border transition-all
+                        ${
+                          isSelected
+                            ? "bg-blue-500 text-white border-blue-500"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-500"
+                        }
+                        ${
+                          isTimerRunning
+                            ? "cursor-not-allowed opacity-70"
+                            : ""
+                        }
+                      `}
+                    >
+                      {subject}
+                    </button>
+                  );
+                }
+              )}
+
             </div>
+
           </div>
 
-          {/* Timer Display */}
+          {/* TIMER DISPLAY */}
 
           <div className="bg-slate-50 rounded-2xl py-7 px-4 text-center border border-slate-100">
+
             <p className="text-xs font-medium text-slate-400 mb-2">
               {isTimerRunning
                 ? `${selectedSubject} Study Time`
-                : "Ready to Study"}
+                : "Today's Study Time"}
             </p>
 
             <div className="text-4xl sm:text-5xl font-bold tracking-wider text-slate-800 font-mono">
-              {formatTime(elapsedSeconds)}
+              {formatTime(
+                totalStudySeconds
+              )}
             </div>
 
             {isTimerRunning && (
@@ -580,29 +1476,43 @@ const DashboardMiddleSection = ({
                 Timer will continue until you stop it
               </p>
             )}
+
           </div>
 
-          {/* Start / Stop Button */}
+          {/* START / STOP */}
 
           <div className="mt-4">
+
             {!isTimerRunning ? (
               <button
                 type="button"
-                onClick={handleStartTimer}
-                className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold transition-all shadow-sm"
+                onClick={
+                  handleStartTimer
+                }
+                disabled={
+                  startLoading
+                }
+                className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl text-sm font-semibold transition-all shadow-sm"
               >
                 <Play
                   size={17}
                   fill="currentColor"
                 />
 
-                Start Study
+                {startLoading
+                  ? "Starting..."
+                  : "Start Study"}
               </button>
             ) : (
               <button
                 type="button"
-                onClick={handleStopTimer}
-                className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl text-sm font-semibold transition-all shadow-sm"
+                onClick={
+                  handleStopTimer
+                }
+                disabled={
+                  stopLoading
+                }
+                className="w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed text-white py-3 rounded-xl text-sm font-semibold transition-all shadow-sm"
               >
                 <Square
                   size={16}
@@ -612,14 +1522,14 @@ const DashboardMiddleSection = ({
                 Stop Study
               </button>
             )}
-          </div>
 
-          {/* Info */}
+          </div>
 
           <p className="text-[11px] text-slate-400 text-center mt-3">
             You can study for any duration. Stop the timer
             whenever you finish.
           </p>
+
         </div>
 
         {/* =====================================================
@@ -627,10 +1537,11 @@ const DashboardMiddleSection = ({
         ===================================================== */}
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-          {/* Header */}
 
           <div className="flex items-center justify-between mb-5">
+
             <div className="flex items-center gap-3">
+
               <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
                 <Target
                   size={21}
@@ -647,26 +1558,39 @@ const DashboardMiddleSection = ({
                   Complete your study goals
                 </p>
               </div>
+
             </div>
 
             <button
               type="button"
               onClick={() =>
-                setShowTargetModal(true)
+                setShowTargetModal(
+                  true
+                )
               }
-              className="flex items-center gap-1 text-xs font-semibold text-purple-500 hover:text-purple-600 transition-colors"
+              className="flex items-center bg-purple-400 py-2 px-2 rounded-md text-white gap-1 text-xs font-semibold hover:text-purple-600 transition-colors"
             >
               <Plus size={15} />
-
               Add Target
             </button>
+
           </div>
 
-          {/* Target List */}
+          {/* TARGET LIST */}
 
           <div className="space-y-3">
-            {targets.length === 0 ? (
+
+            {targetsLoading ? (
               <div className="py-8 text-center">
+
+                <p className="text-sm text-slate-400">
+                  Loading targets...
+                </p>
+
+              </div>
+            ) : safeTargets.length === 0 ? (
+              <div className="py-8 text-center">
+
                 <Target
                   size={30}
                   className="mx-auto text-slate-300 mb-2"
@@ -675,72 +1599,136 @@ const DashboardMiddleSection = ({
                 <p className="text-sm text-slate-400">
                   No targets added yet
                 </p>
+
               </div>
             ) : (
-              targets.map((target) => (
-                <div
-                  key={target.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100"
-                >
-                  {/* Left */}
+              visibleTargets.map(
+                (target) => {
+                  const targetId =
+                    target.id ||
+                    target._id;
 
-                  <div className="flex items-center gap-3 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleTargetToggle(
-                          target.id
-                        )
-                      }
-                      className="shrink-0"
-                      aria-label={`Mark ${target.title}`}
+                  const completed =
+                    Boolean(
+                      target.completed ??
+                        target.isCompleted
+                    );
+
+                  const durationMinutes =
+                    Number(
+                      target.durationMinutes
+                    ) || 0;
+
+                  return (
+                    <div
+                      key={targetId}
+                      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100"
                     >
-                      {target.completed ? (
-                        <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center">
-                          <CheckCircle2
-                            size={15}
-                            className="text-white"
-                          />
+
+                      <div className="flex items-center gap-3 min-w-0">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleTargetToggle(
+                              targetId
+                            )
+                          }
+                          disabled={
+                            targetToggleLoading
+                          }
+                          className="shrink-0"
+                          aria-label={`Mark ${target.title}`}
+                        >
+                          {completed ? (
+                            <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center">
+                              <Check
+                                size={14}
+                                strokeWidth={3}
+                                className="text-white"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-md border-2 border-slate-300 hover:border-purple-400 transition-colors" />
+                          )}
+                        </button>
+
+                        <div className="min-w-0">
+
+                          <p
+                            className={`text-sm font-semibold truncate ${
+                              completed
+                                ? "text-slate-400 line-through"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {target.title}
+                          </p>
+
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {durationMinutes > 0
+                              ? `${Math.floor(
+                                  durationMinutes /
+                                    60
+                                )}h ${
+                                  durationMinutes %
+                                    60
+                                    ? `${
+                                        durationMinutes %
+                                        60
+                                      }m`
+                                    : ""
+                                }`
+                              : "--"}
+                          </p>
+
                         </div>
-                      ) : (
-                        <div className="w-5 h-5 rounded-md border-2 border-slate-300 hover:border-purple-400 transition-colors" />
-                      )}
-                    </button>
 
-                    <div className="min-w-0">
-                      <p
-                        className={`text-sm font-semibold truncate ${
-                          target.completed
-                            ? "text-slate-400 line-through"
-                            : "text-slate-700"
-                        }`}
-                      >
-                        {target.title}
-                      </p>
+                      </div>
 
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {target.duration}
-                      </p>
+                      <div className="shrink-0">
+
+                        {completed ? (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">
+                            Completed
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-500 text-[10px] font-bold">
+                            Pending
+                          </span>
+                        )}
+
+                      </div>
+
                     </div>
-                  </div>
-
-                  {/* Status */}
-
-                  <div className="shrink-0">
-                    {target.completed ? (
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold">
-                        Completed
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 text-[10px] font-bold">
-                        Pending
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
+                  );
+                }
+              )
             )}
+
+            {/* LOAD MORE TARGETS */}
+
+            {visibleTargetCount <
+              safeTargets.length && (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleTargetCount(
+                    (prev) =>
+                      Math.min(
+                        prev + 5,
+                        safeTargets.length
+                      )
+                  )
+                }
+                className="w-full mt-3 py-2 rounded-xl border border-purple-100 bg-purple-50 text-purple-500 text-xs font-semibold hover:bg-purple-100 transition-colors"
+              >
+                Load More
+              </button>
+            )}
+
           </div>
+
         </div>
 
         {/* =====================================================
@@ -748,10 +1736,11 @@ const DashboardMiddleSection = ({
         ===================================================== */}
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-          {/* Header */}
 
           <div className="flex items-center justify-between mb-5">
+
             <div className="flex items-center gap-3">
+
               <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
                 <Flame
                   size={21}
@@ -768,78 +1757,160 @@ const DashboardMiddleSection = ({
                   Build consistency every day
                 </p>
               </div>
+
             </div>
 
             <div className="text-xs font-bold text-orange-500">
-              {completedHabits}/{habits.length}
+              {safeCompletedHabits}/
+              {safeTotalHabits}
             </div>
+
           </div>
 
-          {/* Habits */}
+          {/* HABITS */}
 
           <div className="space-y-3">
-            {habits.map((habit) => (
-              <div
-                key={habit.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100"
-              >
-                {/* Left */}
 
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleHabitToggle(
-                        habit.id
-                      )
-                    }
-                    className="shrink-0"
-                    aria-label={`Toggle ${habit.title}`}
-                  >
-                    {habit.completed ? (
-                      <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center">
-                        <CheckCircle2
-                          size={15}
-                          className="text-white"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-5 h-5 rounded-md border-2 border-slate-300 hover:border-orange-400 transition-colors" />
-                    )}
-                  </button>
+            {habitsLoading ? (
+              <div className="py-8 text-center">
 
-                  <div className="min-w-0">
-                    <p
-                      className={`text-sm font-semibold truncate ${
-                        habit.completed
-                          ? "text-slate-400 line-through"
-                          : "text-slate-700"
-                      }`}
-                    >
-                      {habit.title}
-                    </p>
+                <p className="text-sm text-slate-400">
+                  Loading habits...
+                </p>
 
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      {habit.subtitle}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Status */}
-
-                {habit.completed ? (
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold shrink-0">
-                    Done
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-bold shrink-0">
-                    Pending
-                  </span>
-                )}
               </div>
-            ))}
+            ) : safeHabits.length === 0 ? (
+              <div className="py-8 text-center">
+
+                <Flame
+                  size={30}
+                  className="mx-auto text-slate-300 mb-2"
+                />
+
+                <p className="text-sm text-slate-400">
+                  No habits added yet
+                </p>
+
+              </div>
+            ) : (
+              visibleHabits.map(
+                (habit) => {
+                  const habitId =
+                    habit.id ||
+                    habit._id;
+
+                  const completed =
+                    Boolean(
+                      habit.completed ??
+                        habit.isCompleted
+                    );
+
+                  const title =
+                    habit.title ||
+                    habit.name ||
+                    "Habit";
+
+                  const subtitle =
+                    habit.subtitle ||
+                    habit.reminder ||
+                    habit.frequency ||
+                    "Daily";
+
+                  return (
+                    <div
+                      key={habitId}
+                      className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100"
+                    >
+
+                      <div className="flex items-center gap-3 min-w-0">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleHabitToggle(
+                              habitId
+                            )
+                          }
+                          disabled={
+                            habitToggleLoading
+                          }
+                          className="shrink-0"
+                          aria-label={`Toggle ${title}`}
+                        >
+                          {completed ? (
+                            <div className="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center">
+                              <Check
+                                size={14}
+                                strokeWidth={3}
+                                className="text-white"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-md border-2 border-slate-300 hover:border-orange-400 transition-colors" />
+                          )}
+                        </button>
+
+                        <div className="min-w-0">
+
+                          <p
+                            className={`text-sm font-semibold truncate ${
+                              completed
+                                ? "text-slate-400 line-through"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {title}
+                          </p>
+
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {subtitle}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      {completed ? (
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-[10px] font-bold shrink-0">
+                          +5
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-lg bg-red-100 text-red-500 text-[10px] font-bold shrink-0">
+                          Pending
+                        </span>
+                      )}
+
+                    </div>
+                  );
+                }
+              )
+            )}
+
+            {/* LOAD MORE HABITS */}
+
+            {visibleHabitCount <
+              safeHabits.length && (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleHabitCount(
+                    (prev) =>
+                      Math.min(
+                        prev + 5,
+                        safeHabits.length
+                      )
+                  )
+                }
+                className="w-full mt-3 py-2 rounded-xl border border-orange-100 bg-orange-50 text-orange-500 text-xs font-semibold hover:bg-orange-100 transition-colors"
+              >
+                Load More
+              </button>
+            )}
+
           </div>
+
         </div>
+
       </div>
 
       {/* =====================================================
@@ -850,15 +1921,19 @@ const DashboardMiddleSection = ({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
+            if (
+              e.target ===
+              e.currentTarget
+            ) {
               handleCancelStop();
             }
           }}
         >
+
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
-            {/* Modal Header */}
 
             <div className="flex items-center justify-between mb-5">
+
               <div>
                 <h3 className="text-lg font-bold text-slate-800">
                   Stop Study Session
@@ -871,55 +1946,76 @@ const DashboardMiddleSection = ({
 
               <button
                 type="button"
-                onClick={handleCancelStop}
+                onClick={
+                  handleCancelStop
+                }
                 className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
               >
                 <X size={18} />
               </button>
+
             </div>
 
-            {/* Session Time */}
+            {/* SESSION TIME */}
 
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5 text-center">
+
               <p className="text-xs font-semibold text-blue-500 mb-1">
                 {selectedSubject} Study Time
               </p>
 
               <p className="text-3xl font-bold font-mono text-slate-800">
-                {formatTime(elapsedSeconds)}
+                {formatTime(
+                  elapsedSeconds
+                )}
               </p>
+
             </div>
 
-            <form onSubmit={handleConfirmStop}>
-              {/* Reason */}
+            <form
+              onSubmit={
+                handleConfirmStop
+              }
+            >
+
+              {/* REASON */}
 
               <div className="mb-4">
+
                 <label className="block text-xs font-semibold text-slate-600 mb-2">
                   Why are you stopping?
                 </label>
 
                 <textarea
-                  value={stopReason}
+                  value={
+                    stopReason
+                  }
                   onChange={(e) =>
-                    setStopReason(e.target.value)
+                    setStopReason(
+                      e.target.value
+                    )
                   }
                   placeholder="e.g. Taking dinner break, feeling tired..."
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none resize-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
                   required
                 />
+
               </div>
 
-              {/* Next Start Time */}
+              {/* NEXT START */}
 
               <div className="mb-5">
+
                 <label className="block text-xs font-semibold text-slate-600 mb-2">
                   When will you start again?
                 </label>
 
                 <input
                   type="time"
-                  value={nextStartInput}
+                  value={
+                    nextStartInput
+                  }
                   onChange={(e) =>
                     setNextStartInput(
                       e.target.value
@@ -932,17 +2028,26 @@ const DashboardMiddleSection = ({
                 {nextStartTime && (
                   <p className="text-[11px] text-slate-400 mt-2">
                     Previous planned start:{" "}
-                    {nextStartTime}
+                    {
+                      nextStartTime
+                    }
                   </p>
                 )}
+
               </div>
 
-              {/* Buttons */}
+              {/* BUTTONS */}
 
               <div className="flex gap-3">
+
                 <button
                   type="button"
-                  onClick={handleCancelStop}
+                  onClick={
+                    handleCancelStop
+                  }
+                  disabled={
+                    stopLoading
+                  }
                   className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Continue Studying
@@ -950,13 +2055,22 @@ const DashboardMiddleSection = ({
 
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors"
+                  disabled={
+                    stopLoading
+                  }
+                  className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                 >
-                  Save & Stop
+                  {stopLoading
+                    ? "Saving..."
+                    : "Save & Stop"}
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
       )}
 
@@ -968,15 +2082,21 @@ const DashboardMiddleSection = ({
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowTargetModal(false);
+            if (
+              e.target ===
+              e.currentTarget
+            ) {
+              setShowTargetModal(
+                false
+              );
             }
           }}
         >
+
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
-            {/* Modal Header */}
 
             <div className="flex items-center justify-between mb-5">
+
               <div>
                 <h3 className="text-lg font-bold text-slate-800">
                   Add New Target
@@ -990,27 +2110,36 @@ const DashboardMiddleSection = ({
               <button
                 type="button"
                 onClick={() =>
-                  setShowTargetModal(false)
+                  setShowTargetModal(
+                    false
+                  )
                 }
                 className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
               >
                 <X size={18} />
               </button>
+
             </div>
 
-            {/* Form */}
+            {/* FORM */}
 
-            <form onSubmit={handleAddTarget}>
-              {/* Target */}
+            <form
+              onSubmit={
+                handleAddTarget
+              }
+            >
 
               <div className="mb-4">
+
                 <label className="block text-xs font-semibold text-slate-600 mb-2">
                   Target
                 </label>
 
                 <input
                   type="text"
-                  value={targetTitle}
+                  value={
+                    targetTitle
+                  }
                   onChange={(e) =>
                     setTargetTitle(
                       e.target.value
@@ -1018,19 +2147,22 @@ const DashboardMiddleSection = ({
                   }
                   placeholder="e.g. Biology - Genetics"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all"
+                  required
                 />
+
               </div>
 
-              {/* Duration */}
-
               <div className="mb-5">
+
                 <label className="block text-xs font-semibold text-slate-600 mb-2">
                   Duration
                 </label>
 
                 <input
                   type="text"
-                  value={targetDuration}
+                  value={
+                    targetDuration
+                  }
                   onChange={(e) =>
                     setTargetDuration(
                       e.target.value
@@ -1038,16 +2170,22 @@ const DashboardMiddleSection = ({
                   }
                   placeholder="e.g. 2 hours"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all"
+                  required
                 />
+
               </div>
 
-              {/* Buttons */}
-
               <div className="flex gap-3">
+
                 <button
                   type="button"
                   onClick={() =>
-                    setShowTargetModal(false)
+                    setShowTargetModal(
+                      false
+                    )
+                  }
+                  disabled={
+                    targetCreateLoading
                   }
                   className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
@@ -1056,15 +2194,25 @@ const DashboardMiddleSection = ({
 
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-sm font-semibold transition-colors"
+                  disabled={
+                    targetCreateLoading
+                  }
+                  className="flex-1 py-3 rounded-xl bg-purple-500 hover:bg-purple-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors"
                 >
-                  Add Target
+                  {targetCreateLoading
+                    ? "Adding..."
+                    : "Add Target"}
                 </button>
+
               </div>
+
             </form>
+
           </div>
+
         </div>
       )}
+
     </>
   );
 };

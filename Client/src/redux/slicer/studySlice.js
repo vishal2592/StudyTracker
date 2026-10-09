@@ -1,3 +1,4 @@
+
 import {
   createSlice,
   createAsyncThunk,
@@ -49,6 +50,30 @@ export const stopStudy = createAsyncThunk(
       return rejectWithValue(
         error.response?.data || {
           message: "Failed to stop study session",
+        },
+      );
+    }
+  },
+);
+
+// =====================================================
+// GET RUNNING STUDY
+// GET /api/study/running
+// =====================================================
+
+export const getRunningStudy = createAsyncThunk(
+  "study/getRunningStudy",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get(
+        "/study/running",
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || {
+          message: "Failed to get running study session",
         },
       );
     }
@@ -176,32 +201,49 @@ export const getWeeklyStudyHours = createAsyncThunk(
 // =====================================================
 
 const initialState = {
-  // Current session
+  // Current running study session
   currentSession: null,
+
+  // Whether study is currently running
   isStudying: false,
 
-  // Start / Stop loading
+  // Start study loading
   startLoading: false,
+
+  // Stop study loading
   stopLoading: false,
 
-  // Summary
+  // Running study loading
+  runningLoading: false,
+
+  // Daily summary
   summary: null,
+
+  // Summary loading
   summaryLoading: false,
 
-  // Monthly
+  // Monthly overview
   monthlyOverview: null,
+
+  // Monthly loading
   monthlyLoading: false,
 
   // Calendar
   calendar: [],
+
+  // Calendar loading
   calendarLoading: false,
 
-  // Weekly
+  // Weekly study
   weeklyStudy: null,
+
+  // Weekly loading
   weeklyLoading: false,
 
-  // Common
+  // Error
   error: null,
+
+  // Success message
   successMessage: null,
 };
 
@@ -215,29 +257,42 @@ const studySlice = createSlice({
   initialState,
 
   reducers: {
-    // Clear error
+    // =================================================
+    // CLEAR ERROR
+    // =================================================
+
     clearStudyError: (state) => {
       state.error = null;
     },
 
-    // Clear success message
+    // =================================================
+    // CLEAR SUCCESS
+    // =================================================
+
     clearStudySuccess: (state) => {
       state.successMessage = null;
     },
 
-    // Clear current session
+    // =================================================
+    // CLEAR CURRENT SESSION
+    // =================================================
+
     clearCurrentSession: (state) => {
       state.currentSession = null;
       state.isStudying = false;
     },
 
-    // Reset complete study state
+    // =================================================
+    // RESET STUDY STATE
+    // =================================================
+
     resetStudyState: (state) => {
       state.currentSession = null;
       state.isStudying = false;
 
       state.startLoading = false;
       state.stopLoading = false;
+      state.runningLoading = false;
 
       state.summary = null;
       state.summaryLoading = false;
@@ -328,6 +383,59 @@ const studySlice = createSlice({
       });
 
     // =================================================
+    // GET RUNNING STUDY
+    // =================================================
+
+    builder
+      .addCase(getRunningStudy.pending, (state) => {
+        state.runningLoading = true;
+        state.error = null;
+      })
+
+      .addCase(getRunningStudy.fulfilled, (state, action) => {
+        state.runningLoading = false;
+        state.error = null;
+
+        /*
+         * Expected backend response:
+         *
+         * {
+         *   success: true,
+         *   session: {...}
+         * }
+         *
+         * OR
+         *
+         * {
+         *   success: true,
+         *   session: null
+         * }
+         */
+
+        const session =
+          action.payload?.session || null;
+
+        state.currentSession = session;
+
+        state.isStudying = Boolean(session);
+      })
+
+      .addCase(getRunningStudy.rejected, (state, action) => {
+        state.runningLoading = false;
+
+        state.error =
+          action.payload?.message ||
+          "Failed to get running study session";
+
+        /*
+         * If backend says there is no running session,
+         * frontend should not remain in studying state.
+         */
+        state.currentSession = null;
+        state.isStudying = false;
+      });
+
+    // =================================================
     // GET STUDY SUMMARY
     // =================================================
 
@@ -337,30 +445,39 @@ const studySlice = createSlice({
         state.error = null;
       })
 
-      .addCase(getStudySummary.fulfilled, (state, action) => {
-        state.summaryLoading = false;
-        state.error = null;
+      .addCase(
+        getStudySummary.fulfilled,
+        (state, action) => {
+          state.summaryLoading = false;
+          state.error = null;
 
-        state.summary = action.payload;
-      })
+          state.summary = action.payload;
+        },
+      )
 
-      .addCase(getStudySummary.rejected, (state, action) => {
-        state.summaryLoading = false;
+      .addCase(
+        getStudySummary.rejected,
+        (state, action) => {
+          state.summaryLoading = false;
 
-        state.error =
-          action.payload?.message ||
-          "Failed to get study summary";
-      });
+          state.error =
+            action.payload?.message ||
+            "Failed to get study summary";
+        },
+      );
 
     // =================================================
     // GET MONTHLY OVERVIEW
     // =================================================
 
     builder
-      .addCase(getMonthlyOverview.pending, (state) => {
-        state.monthlyLoading = true;
-        state.error = null;
-      })
+      .addCase(
+        getMonthlyOverview.pending,
+        (state) => {
+          state.monthlyLoading = true;
+          state.error = null;
+        },
+      )
 
       .addCase(
         getMonthlyOverview.fulfilled,
@@ -389,10 +506,13 @@ const studySlice = createSlice({
     // =================================================
 
     builder
-      .addCase(getStudyCalendar.pending, (state) => {
-        state.calendarLoading = true;
-        state.error = null;
-      })
+      .addCase(
+        getStudyCalendar.pending,
+        (state) => {
+          state.calendarLoading = true;
+          state.error = null;
+        },
+      )
 
       .addCase(
         getStudyCalendar.fulfilled,
@@ -465,7 +585,31 @@ export const {
 } = studySlice.actions;
 
 // =====================================================
-// REDUCER
+// SELECTORS
+// =====================================================
+
+export const selectCurrentSession = (state) =>
+  state.study.currentSession;
+
+export const selectIsStudying = (state) =>
+  state.study.isStudying;
+
+export const selectStudyLoading = (state) =>
+  state.study.startLoading ||
+  state.study.stopLoading;
+
+export const selectRunningLoading = (state) =>
+  state.study.runningLoading;
+
+export const selectStudySummary = (state) =>
+  state.study.summary;
+
+export const selectStudyError = (state) =>
+  state.study.error;
+
+// =====================================================
+// EXPORT REDUCER
 // =====================================================
 
 export default studySlice.reducer;
+

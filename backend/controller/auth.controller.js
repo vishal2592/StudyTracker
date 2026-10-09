@@ -5,18 +5,27 @@ const LoginHistory = require("../models/loginHistory.model");
 
 const registerUser = async (req, res) => {
   try {
-    const { fullName, email, mobileNumber, password } = req.body;
+    const { fullName, email, mobileNumber, password, neetExamDate } = req.body;
 
-    // missing fileds check
-    if (!fullName || !email || !mobileNumber || !password) {
+    // missing fields check
+    if (!fullName || !email || !mobileNumber || !password || !neetExamDate) {
       return res.status(400).json({
         success: false,
         message: "All fields are required",
       });
     }
 
-    //check existing email
+    // validate NEET exam date
+    const examDate = new Date(neetExamDate);
 
+    if (isNaN(examDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid NEET exam date",
+      });
+    }
+
+    // check existing email
     const existingEmail = await User.findOne({ email });
 
     if (existingEmail) {
@@ -28,6 +37,7 @@ const registerUser = async (req, res) => {
 
     // check mobileNumber exist
     const existingmobileNumber = await User.findOne({ mobileNumber });
+
     if (existingmobileNumber) {
       return res.status(409).json({
         success: false,
@@ -38,16 +48,16 @@ const registerUser = async (req, res) => {
     // password hashing
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    //create user
-
+    // create user
     const user = await User.create({
       fullName,
       email,
       mobileNumber,
       password: hashedPassword,
+      neetExamDate: examDate,
     });
 
-    //response
+    // response
     res.status(201).json({
       success: true,
       message: "User registered Successfully",
@@ -57,10 +67,13 @@ const registerUser = async (req, res) => {
         email: user.email,
         mobileNumber: user.mobileNumber,
         role: user.role,
+        neetExamDate: user.neetExamDate,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
     console.log("Register Error", error);
+
     res.status(500).json({
       success: false,
       message: "Server error",

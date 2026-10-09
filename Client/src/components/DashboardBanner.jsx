@@ -5,65 +5,169 @@ import {
   Target,
 } from "lucide-react";
 
+import { useDispatch, useSelector } from "react-redux";
+import { getTargetCountdown } from "../redux/slicer/targetSlice";
+
 const DashboardBanner = () => {
+  const dispatch = useDispatch();
+
+  // =====================================================
+  // TARGET COUNTDOWN FROM REDUX
+  // =====================================================
+
+  const { target, loading, error } = useSelector(
+    (state) => state.target
+  );
+
   // =====================================================
   // COUNTDOWN STATE
   // =====================================================
 
   const [timeLeft, setTimeLeft] = useState({
-    days: 487,
-    hours: 22,
-    mins: 39,
-    secs: 12,
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
   });
 
   // =====================================================
-  // COUNTDOWN EFFECT
+  // GET TARGET COUNTDOWN FROM BACKEND
   // =====================================================
 
   useEffect(() => {
+    dispatch(getTargetCountdown());
+  }, [dispatch]);
+
+  // =====================================================
+  // SET INITIAL COUNTDOWN FROM BACKEND
+  // =====================================================
+
+  useEffect(() => {
+    if (!target?.remaining) return;
+
+    setTimeLeft({
+      days: Number(target.remaining.days) || 0,
+      hours: Number(target.remaining.hours) || 0,
+      minutes: Number(target.remaining.minutes) || 0,
+      seconds: Number(target.remaining.seconds) || 0,
+    });
+  }, [target]);
+
+  // =====================================================
+  // LIVE COUNTDOWN
+  // =====================================================
+
+  useEffect(() => {
+    if (!target?.remaining) return;
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev.secs > 0) {
+        // -----------------------------------------------
+        // Seconds
+        // -----------------------------------------------
+
+        if (prev.seconds > 0) {
           return {
             ...prev,
-            secs: prev.secs - 1,
+            seconds: prev.seconds - 1,
           };
         }
 
-        if (prev.mins > 0) {
+        // -----------------------------------------------
+        // Minutes
+        // -----------------------------------------------
+
+        if (prev.minutes > 0) {
           return {
             ...prev,
-            secs: 59,
-            mins: prev.mins - 1,
+            minutes: prev.minutes - 1,
+            seconds: 59,
           };
         }
+
+        // -----------------------------------------------
+        // Hours
+        // -----------------------------------------------
 
         if (prev.hours > 0) {
           return {
             ...prev,
-            mins: 59,
-            secs: 59,
             hours: prev.hours - 1,
+            minutes: 59,
+            seconds: 59,
           };
         }
+
+        // -----------------------------------------------
+        // Days
+        // -----------------------------------------------
 
         if (prev.days > 0) {
           return {
             ...prev,
-            hours: 23,
-            mins: 59,
-            secs: 59,
             days: prev.days - 1,
+            hours: 23,
+            minutes: 59,
+            seconds: 59,
           };
         }
 
-        return prev;
+        // -----------------------------------------------
+        // Countdown finished
+        // -----------------------------------------------
+
+        return {
+          days: 0,
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
+        };
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [target]);
+
+  // =====================================================
+  // FORMAT EXAM DATE
+  // =====================================================
+
+  const formatExamDate = (date) => {
+    if (!date) return "NEET Exam";
+
+    const examDate = new Date(date);
+
+    if (Number.isNaN(examDate.getTime())) {
+      return "NEET Exam";
+    }
+
+    return examDate.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  // =====================================================
+  // FORMAT CURRENT TARGET DATE
+  // =====================================================
+
+  const formatCurrentDate = () => {
+    return new Date().toLocaleDateString("en-IN", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  // =====================================================
+  // VALUES
+  // =====================================================
+
+  const examDate = target?.examDate
+    ? formatExamDate(target.examDate)
+    : "4 February 2028";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
@@ -144,14 +248,17 @@ const DashboardBanner = () => {
 
           <div className="bg-white/60 p-2 rounded-xl text-xs font-semibold flex items-center gap-1">
             <Calendar size={14} />
-            Sat, 4 Oct 2026
+
+            {formatCurrentDate()}
           </div>
 
           <div className="w-8 h-8 rounded-full bg-pink-200 flex items-center justify-center">
+
             <Heart
               size={16}
               className="text-pink-600 fill-pink-600"
             />
+
           </div>
 
         </div>
@@ -166,7 +273,9 @@ const DashboardBanner = () => {
 
         </div>
 
-        {/* Countdown */}
+        {/* =====================================================
+            COUNTDOWN
+        ===================================================== */}
 
         <div className="grid grid-cols-4 gap-2 mb-4">
 
@@ -181,11 +290,11 @@ const DashboardBanner = () => {
             },
             {
               label: "Mins",
-              val: timeLeft.mins,
+              val: timeLeft.minutes,
             },
             {
               label: "Secs",
-              val: timeLeft.secs,
+              val: timeLeft.seconds,
             },
           ].map((item, idx) => (
             <div
@@ -194,7 +303,7 @@ const DashboardBanner = () => {
             >
 
               <div className="text-lg font-bold text-slate-800">
-                {item.val}
+                {loading ? "--" : item.val}
               </div>
 
               <div className="text-[10px] text-slate-500 uppercase">
@@ -206,7 +315,9 @@ const DashboardBanner = () => {
 
         </div>
 
-        {/* Target Exam */}
+        {/* =====================================================
+            TARGET EXAM
+        ===================================================== */}
 
         <div className="bg-white/80 rounded-xl p-2 text-center text-xs font-medium text-slate-600 flex items-center justify-center gap-2">
 
@@ -215,9 +326,19 @@ const DashboardBanner = () => {
             className="text-pink-500"
           />
 
-          Target Exam: 4 February 2028 (NEET)
+          Target Exam: {examDate} (NEET)
 
         </div>
+
+        {/* =====================================================
+            ERROR
+        ===================================================== */}
+
+        {error && (
+          <p className="text-center text-[10px] text-red-500 mt-2">
+            {error}
+          </p>
+        )}
 
       </div>
     </div>

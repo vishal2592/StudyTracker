@@ -23,33 +23,26 @@ const getSubjectTracker = async (req, res) => {
       });
     }
 
-    // Selected date ko IST day-end tak lena hai
-    const startOfMonthUTC = new Date(`${date.slice(0, 7)}-01T00:00:00+05:30`);
+    // Selected date ka IST day start
+    const startOfDayUTC = new Date(`${date}T00:00:00+05:30`);
 
-    const endOfSelectedDateUTC = new Date(`${date}T23:59:59.999+05:30`);
+    // Selected date ka IST day end
+    const endOfDayUTC = new Date(`${date}T23:59:59.999+05:30`);
 
-    // Completed study sessions
+    // Sirf selected day ke completed study sessions
     const sessions = await StudySession.find({
       user: userId,
       status: "completed",
       startTime: {
-        $gte: startOfMonthUTC,
-        $lte: endOfSelectedDateUTC,
+        $gte: startOfDayUTC,
+        $lte: endOfDayUTC,
       },
     })
       .sort({ startTime: 1 })
       .lean();
 
-    // Subject-wise duration
-    const subjectWise = {
-      Biology: 0,
-      Physics: 0,
-      Chemistry: 0,
-      "Mock Test": 0,
-      Other: 0,
-    };
+    const subjectWise = {};
 
-    // Total study duration
     let totalStudyMinutes = 0;
 
     sessions.forEach((session) => {
@@ -57,9 +50,12 @@ const getSubjectTracker = async (req, res) => {
 
       totalStudyMinutes += duration;
 
-      if (subjectWise[session.subject] !== undefined) {
-        subjectWise[session.subject] += duration;
+      // Dynamic subject support
+      if (!subjectWise[session.subject]) {
+        subjectWise[session.subject] = 0;
       }
+
+      subjectWise[session.subject] += duration;
     });
 
     // Convert minutes to hours
@@ -79,16 +75,18 @@ const getSubjectTracker = async (req, res) => {
       selectedDate: date,
 
       period: {
-        startDate: `${date.slice(0, 7)}-01`,
+        startDate: date,
         endDate: date,
       },
 
       timezone: "Asia/Kolkata",
 
       totalStudyMinutes,
+
       totalStudyHours,
 
       subjectWise,
+
       subjectWiseHours,
     });
   } catch (error) {

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -19,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
+import toast from "react-hot-toast";
 
 import {
   getTargets,
@@ -43,6 +45,8 @@ const DailyTargets = () => {
     editLoading,
     toggleLoading,
     deleteLoading,
+    positiveScore,
+    negativeScore,
   } = useSelector((state) => state.dailyTarget);
 
   // =====================================================
@@ -70,11 +74,18 @@ const DailyTargets = () => {
   }, [dispatch, selectedDate]);
 
   // =====================================================
-  // MODAL STATE
+  // ADD / EDIT MODAL STATE
   // =====================================================
 
   const [showModal, setShowModal] = useState(false);
   const [editingTargetId, setEditingTargetId] = useState(null);
+
+  // =====================================================
+  // DELETE MODAL STATE
+  // =====================================================
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [targetToDelete, setTargetToDelete] = useState(null);
 
   // =====================================================
   // FORM STATE
@@ -95,7 +106,6 @@ const DailyTargets = () => {
 
   // =====================================================
   // DURATION HELPER
-  // Backend stores duration in minutes
   // =====================================================
 
   const durationToMinutes = (duration) => {
@@ -128,7 +138,6 @@ const DailyTargets = () => {
 
   // =====================================================
   // CURRENT DATE TARGETS
-  // Backend already returns selected date targets
   // =====================================================
 
   const dailyTargets = useMemo(() => {
@@ -169,6 +178,36 @@ const DailyTargets = () => {
     totalTargets === 0
       ? 0
       : Math.round((completedTargets / totalTargets) * 100);
+
+  // =====================================================
+  // SCORE
+  // =====================================================
+
+  const currentPositiveScore = Number(positiveScore || 0);
+  const currentNegativeScore = Number(negativeScore || 0);
+
+  const totalScore =
+    currentPositiveScore + currentNegativeScore;
+
+  // =====================================================
+  // ERROR MESSAGE HELPER
+  // =====================================================
+
+  const getErrorMessage = (error, fallbackMessage) => {
+    if (typeof error === "string") {
+      return error;
+    }
+
+    if (error?.message) {
+      return error.message;
+    }
+
+    if (error?.error) {
+      return error.error;
+    }
+
+    return fallbackMessage;
+  };
 
   // =====================================================
   // DATE HELPERS
@@ -241,7 +280,7 @@ const DailyTargets = () => {
   };
 
   // =====================================================
-  // CLOSE MODAL
+  // CLOSE ADD / EDIT MODAL
   // =====================================================
 
   const handleCloseModal = () => {
@@ -273,6 +312,7 @@ const DailyTargets = () => {
     const trimmedTitle = formData.title.trim();
 
     if (!trimmedTitle) {
+      toast.error("Target title is required");
       return;
     }
 
@@ -284,7 +324,7 @@ const DailyTargets = () => {
       // =================================================
 
       if (editingTargetId) {
-        await dispatch(
+        const response = await dispatch(
           editTarget({
             id: editingTargetId,
             targetData: {
@@ -294,6 +334,10 @@ const DailyTargets = () => {
             },
           })
         ).unwrap();
+
+        toast.success(
+          response?.message || "Target updated successfully"
+        );
       }
 
       // =================================================
@@ -301,40 +345,89 @@ const DailyTargets = () => {
       // =================================================
 
       else {
-        await dispatch(
+        const response = await dispatch(
           createTarget({
             title: trimmedTitle,
             durationMinutes,
             date: selectedDate,
           })
         ).unwrap();
+
+        toast.success(
+          response?.message || "Target created successfully"
+        );
       }
 
       handleCloseModal();
     } catch (error) {
       console.error("Target save error:", error);
+
+      toast.error(
+        getErrorMessage(
+          error,
+          editingTargetId
+            ? "Failed to update target"
+            : "Failed to create target"
+        )
+      );
     }
   };
 
   // =====================================================
-  // DELETE TARGET
+  // OPEN DELETE CONFIRMATION MODAL
   // =====================================================
 
-  const handleDeleteTarget = async (id) => {
-    const target = dailyTargets.find((item) => item._id === id);
+  const handleDeleteTarget = (id) => {
+    const target = dailyTargets.find(
+      (item) => item._id === id
+    );
 
     if (!target) return;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${target.title}"?`
-    );
+    setTargetToDelete(target);
+    setShowDeleteModal(true);
+  };
 
-    if (!confirmed) return;
+  // =====================================================
+  // CLOSE DELETE CONFIRMATION MODAL
+  // =====================================================
+
+  const handleCloseDeleteModal = () => {
+    if (deleteLoading) return;
+
+    setShowDeleteModal(false);
+    setTargetToDelete(null);
+  };
+
+  // =====================================================
+  // CONFIRM DELETE TARGET
+  // =====================================================
+
+  const handleConfirmDelete = async () => {
+    if (!targetToDelete || deleteLoading) {
+      return;
+    }
 
     try {
-      await dispatch(deleteTarget(id)).unwrap();
+      const response = await dispatch(
+        deleteTarget(targetToDelete._id)
+      ).unwrap();
+
+      toast.success(
+        response?.message || "Target deleted successfully"
+      );
+
+      setShowDeleteModal(false);
+      setTargetToDelete(null);
     } catch (error) {
       console.error("Delete target error:", error);
+
+      toast.error(
+        getErrorMessage(
+          error,
+          "Failed to delete target"
+        )
+      );
     }
   };
 
@@ -344,15 +437,37 @@ const DailyTargets = () => {
 
   const handleToggleTarget = async (id) => {
     try {
-      await dispatch(toggleTarget(id)).unwrap();
+      const response = await dispatch(
+        toggleTarget(id)
+      ).unwrap();
+
+      const completed =
+        response?.target?.isCompleted;
+
+      if (completed) {
+        toast.success(
+          "Target completed! +1 Positive Score"
+        );
+      } else {
+        toast.error(
+          "Target marked incomplete! -1 Negative Score"
+        );
+      }
     } catch (error) {
       console.error("Toggle target error:", error);
+
+      toast.error(
+        getErrorMessage(
+          error,
+          "Failed to update target"
+        )
+      );
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-slate-50 p-1 sm:p-2 lg:p-3">
+      <div className="mx-auto max-w-7xl space-y-4">
 
         {/* =====================================================
             PAGE HEADER
@@ -362,6 +477,7 @@ const DailyTargets = () => {
 
           <div>
             <div className="mb-2 flex items-center gap-2">
+
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
                 <Target size={22} />
               </div>
@@ -369,6 +485,7 @@ const DailyTargets = () => {
               <span className="text-sm font-semibold text-purple-600">
                 Study Planning
               </span>
+
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
@@ -389,6 +506,7 @@ const DailyTargets = () => {
             <Plus size={18} />
             Add Target
           </button>
+
         </div>
 
         {/* =====================================================
@@ -396,6 +514,7 @@ const DailyTargets = () => {
         ===================================================== */}
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div className="flex items-center gap-2">
@@ -409,6 +528,7 @@ const DailyTargets = () => {
               </button>
 
               <div className="min-w-0 flex-1 px-2 text-center sm:min-w-[260px]">
+
                 <div className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-900">
 
                   <CalendarDays
@@ -416,9 +536,12 @@ const DailyTargets = () => {
                     className="text-purple-500"
                   />
 
-                  <span>{formatDate(selectedDate)}</span>
+                  <span>
+                    {formatDate(selectedDate)}
+                  </span>
 
                 </div>
+
               </div>
 
               <button
@@ -452,6 +575,7 @@ const DailyTargets = () => {
             </div>
 
           </div>
+
         </div>
 
         {/* =====================================================
@@ -460,9 +584,14 @@ const DailyTargets = () => {
 
         {error && (
           <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
-            <AlertCircle size={20} className="mt-0.5 shrink-0" />
+
+            <AlertCircle
+              size={20}
+              className="mt-0.5 shrink-0"
+            />
 
             <div>
+
               <p className="text-sm font-semibold">
                 Unable to load targets
               </p>
@@ -470,7 +599,9 @@ const DailyTargets = () => {
               <p className="mt-1 text-sm text-red-600">
                 {error}
               </p>
+
             </div>
+
           </div>
         )}
 
@@ -478,7 +609,7 @@ const DailyTargets = () => {
             SUMMARY CARDS
         ===================================================== */}
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
           {/* Total */}
 
@@ -487,6 +618,7 @@ const DailyTargets = () => {
             <div className="flex items-start justify-between">
 
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Total Targets
                 </p>
@@ -498,6 +630,7 @@ const DailyTargets = () => {
                 <p className="mt-1 text-xs text-slate-400">
                   Planned for today
                 </p>
+
               </div>
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
@@ -515,6 +648,7 @@ const DailyTargets = () => {
             <div className="flex items-start justify-between">
 
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Completed
                 </p>
@@ -526,6 +660,7 @@ const DailyTargets = () => {
                 <p className="mt-1 text-xs text-slate-400">
                   Targets completed
                 </p>
+
               </div>
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -543,6 +678,7 @@ const DailyTargets = () => {
             <div className="flex items-start justify-between">
 
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Pending
                 </p>
@@ -554,6 +690,7 @@ const DailyTargets = () => {
                 <p className="mt-1 text-xs text-slate-400">
                   Still remaining
                 </p>
+
               </div>
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-500">
@@ -571,6 +708,7 @@ const DailyTargets = () => {
             <div className="flex items-start justify-between">
 
               <div>
+
                 <p className="text-sm font-medium text-slate-500">
                   Daily Progress
                 </p>
@@ -579,13 +717,106 @@ const DailyTargets = () => {
                   {progressPercentage}%
                 </h3>
 
-                <p className="mt-1 text-xs text-slate-400">
-                  Completion rate
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+
+                  <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-600">
+                    +{currentPositiveScore} Positive
+                  </span>
+
+                  <span className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
+                    {currentNegativeScore} Negative
+                  </span>
+
+                </div>
+
               </div>
 
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                 <CheckCheck size={21} />
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =====================================================
+            SCORE SUMMARY
+        ===================================================== */}
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+            <div>
+
+              <h2 className="font-semibold text-slate-900">
+                Today's Study Score
+              </h2>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Completed targets add positive points and pending
+                targets reduce your score.
+              </p>
+
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+
+              <div className="rounded-xl bg-emerald-50 px-4 py-2 text-center">
+
+                <p className="text-[11px] font-medium text-emerald-600">
+                  Positive
+                </p>
+
+                <p className="text-lg font-bold text-emerald-700">
+                  +{currentPositiveScore}
+                </p>
+
+              </div>
+
+              <div className="rounded-xl bg-red-50 px-4 py-2 text-center">
+
+                <p className="text-[11px] font-medium text-red-600">
+                  Negative
+                </p>
+
+                <p className="text-lg font-bold text-red-700">
+                  {currentNegativeScore}
+                </p>
+
+              </div>
+
+              <div
+                className={`rounded-xl px-4 py-2 text-center ${
+                  totalScore >= 0
+                    ? "bg-blue-50"
+                    : "bg-orange-50"
+                }`}
+              >
+
+                <p
+                  className={`text-[11px] font-medium ${
+                    totalScore >= 0
+                      ? "text-blue-600"
+                      : "text-orange-600"
+                  }`}
+                >
+                  Total Score
+                </p>
+
+                <p
+                  className={`text-lg font-bold ${
+                    totalScore >= 0
+                      ? "text-blue-700"
+                      : "text-orange-700"
+                  }`}
+                >
+                  {totalScore >= 0 ? "+" : ""}
+                  {totalScore}
+                </p>
+
               </div>
 
             </div>
@@ -603,6 +834,7 @@ const DailyTargets = () => {
           <div className="mb-3 flex items-center justify-between">
 
             <div>
+
               <h2 className="font-semibold text-slate-900">
                 Today's Progress
               </h2>
@@ -610,6 +842,7 @@ const DailyTargets = () => {
               <p className="mt-1 text-xs text-slate-500">
                 {completedTargets} of {totalTargets} targets completed
               </p>
+
             </div>
 
             <span className="text-sm font-bold text-purple-600">
@@ -642,6 +875,7 @@ const DailyTargets = () => {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
               <div>
+
                 <h2 className="text-lg font-bold text-slate-900">
                   Today's Targets
                 </h2>
@@ -652,6 +886,7 @@ const DailyTargets = () => {
                     {formatShortDate(selectedDate)}
                   </span>
                 </p>
+
               </div>
 
               {/* Filters */}
@@ -773,7 +1008,10 @@ const DailyTargets = () => {
                       >
                         {target.isCompleted ? (
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
-                            <Check size={18} strokeWidth={3} />
+                            <Check
+                              size={18}
+                              strokeWidth={3}
+                            />
                           </span>
                         ) : (
                           <Circle
@@ -814,7 +1052,8 @@ const DailyTargets = () => {
                                 handleEditTarget(target)
                               }
                               disabled={
-                                editLoading || deleteLoading
+                                editLoading ||
+                                deleteLoading
                               }
                               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                               title="Edit target"
@@ -825,7 +1064,9 @@ const DailyTargets = () => {
                             <button
                               type="button"
                               onClick={() =>
-                                handleDeleteTarget(target._id)
+                                handleDeleteTarget(
+                                  target._id
+                                )
                               }
                               disabled={deleteLoading}
                               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -848,6 +1089,7 @@ const DailyTargets = () => {
 
                           <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                             <Clock3 size={13} />
+
                             {minutesToDuration(
                               target.durationMinutes
                             )}
@@ -856,7 +1098,9 @@ const DailyTargets = () => {
                           {target.isCompleted &&
                             target.completedAt && (
                               <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-600">
+
                                 <CheckCircle2 size={13} />
+
                                 Completed at{" "}
                                 {new Date(
                                   target.completedAt
@@ -865,8 +1109,10 @@ const DailyTargets = () => {
                                   {
                                     hour: "2-digit",
                                     minute: "2-digit",
+                                    hour12: true,
                                   }
                                 )}
+
                               </span>
                             )}
 
@@ -900,6 +1146,7 @@ const DailyTargets = () => {
               </div>
 
               <div>
+
                 <h3 className="font-semibold text-purple-900">
                   Plan Smart
                 </h3>
@@ -908,6 +1155,7 @@ const DailyTargets = () => {
                   Break large subjects into smaller daily targets
                   so they are easier to complete.
                 </p>
+
               </div>
 
             </div>
@@ -923,6 +1171,7 @@ const DailyTargets = () => {
               </div>
 
               <div>
+
                 <h3 className="font-semibold text-emerald-900">
                   Complete Daily
                 </h3>
@@ -931,6 +1180,7 @@ const DailyTargets = () => {
                   Completing your daily targets contributes to
                   your overall positive study score.
                 </p>
+
               </div>
 
             </div>
@@ -946,6 +1196,7 @@ const DailyTargets = () => {
               </div>
 
               <div>
+
                 <h3 className="font-semibold text-orange-900">
                   Stay Consistent
                 </h3>
@@ -954,6 +1205,7 @@ const DailyTargets = () => {
                   Keep your targets realistic and focus on
                   completing them consistently every day.
                 </p>
+
               </div>
 
             </div>
@@ -1017,7 +1269,7 @@ const DailyTargets = () => {
               className="p-5 sm:p-6"
             >
 
-              <div className="space-y-5">
+              <div className="space-y-4">
 
                 {/* Target Title */}
 
@@ -1138,8 +1390,147 @@ const DailyTargets = () => {
         </div>
       )}
 
+      {/* =====================================================
+          DELETE CONFIRMATION MODAL
+      ===================================================== */}
+
+      {showDeleteModal && targetToDelete && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (
+              e.target === e.currentTarget &&
+              !deleteLoading
+            ) {
+              handleCloseDeleteModal();
+            }
+          }}
+        >
+
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+
+            {/* Delete Modal Header */}
+
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600">
+                  <Trash2 size={20} />
+                </div>
+
+                <div>
+
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Delete Target?
+                  </h2>
+
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    This action cannot be undone.
+                  </p>
+
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseDeleteModal}
+                disabled={deleteLoading}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+
+            </div>
+
+            {/* Delete Modal Body */}
+
+            <div className="p-5 sm:p-6">
+
+              <div className="rounded-xl border border-red-100 bg-red-50/70 p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <AlertCircle
+                    size={20}
+                    className="mt-0.5 shrink-0 text-red-500"
+                  />
+
+                  <div className="min-w-0">
+
+                    <p className="text-sm text-slate-600">
+                      Are you sure you want to delete this target?
+                    </p>
+
+                    <p className="mt-2 break-words text-sm font-bold text-slate-900">
+                      "{targetToDelete.title}"
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+
+                      <Clock3 size={14} />
+
+                      <span>
+                        {minutesToDuration(
+                          targetToDelete.durationMinutes
+                        )}
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Delete Modal Footer */}
+
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+
+                <button
+                  type="button"
+                  onClick={handleCloseDeleteModal}
+                  disabled={deleteLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X size={17} />
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={deleteLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deleteLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={17} />
+                      Delete Target
+                    </>
+                  )}
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };
 
 export default DailyTargets;
+

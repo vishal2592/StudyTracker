@@ -1,12 +1,18 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-    content: [
+  content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
 
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ["Poppins", "sans-serif"],
+        cursive: ["Caveat", "cursive"],
+      },
+    },
+  },
+
+  plugins: [],
+};

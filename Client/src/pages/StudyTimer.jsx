@@ -1,3 +1,4 @@
+
 import React, {
   useEffect,
   useMemo,
@@ -26,13 +27,12 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   startStudy,
   stopStudy,
+  getRunningStudy,
   getStudySummary,
   clearStudyError,
 } from "../redux/slicer/studySlice";
 
-import {
-  getTargets,
-} from "../redux/slicer/dailyTargetSlice";
+import { getTargets } from "../redux/slicer/dailyTargetSlice";
 
 const StudyTimer = () => {
   const dispatch = useDispatch();
@@ -46,6 +46,7 @@ const StudyTimer = () => {
     isStudying,
     startLoading,
     stopLoading,
+    runningLoading,
     summary,
     summaryLoading,
     error,
@@ -86,16 +87,6 @@ const StudyTimer = () => {
 
   // =====================================================
   // NORMALIZE SUBJECT
-  // =====================================================
-  // Daily Target may have:
-  // physics
-  // biology
-  // chemistry
-  //
-  // StudySession backend expects:
-  // Physics
-  // Biology
-  // Chemistry
   // =====================================================
 
   const normalizeSubject = (subject) => {
@@ -144,9 +135,7 @@ const StudyTimer = () => {
         60,
 
       durationMinutes:
-        Number(
-          target.durationMinutes || 0,
-        ),
+        Number(target.durationMinutes || 0),
 
       color: "purple",
     }));
@@ -156,10 +145,21 @@ const StudyTimer = () => {
   // STATES
   // =====================================================
 
+  // IMPORTANT:
+  // Last selected subject is restored from localStorage
+  // after refresh.
   const [
     selectedSubjectId,
     setSelectedSubjectId,
-  ] = useState(null);
+  ] = useState(() => {
+    try {
+      return localStorage.getItem(
+        "studyTimerLastSubjectId",
+      );
+    } catch (error) {
+      return null;
+    }
+  });
 
   const [
     isTimerRunning,
@@ -230,6 +230,53 @@ const StudyTimer = () => {
   ]);
 
   // =====================================================
+  // ERROR MESSAGE
+  // =====================================================
+
+  const errorMessage = useMemo(() => {
+    if (!error) {
+      return "";
+    }
+
+    if (typeof error === "string") {
+      return error;
+    }
+
+    return (
+      error?.message ||
+      "Something went wrong"
+    );
+  }, [error]);
+
+  // =====================================================
+  // SAVE SELECTED SUBJECT
+  // =====================================================
+
+  const saveSelectedSubject = (
+    subjectId,
+  ) => {
+    if (!subjectId) {
+      return;
+    }
+
+    setSelectedSubjectId(
+      subjectId,
+    );
+
+    try {
+      localStorage.setItem(
+        "studyTimerLastSubjectId",
+        subjectId,
+      );
+    } catch (error) {
+      console.error(
+        "Unable to save selected subject:",
+        error,
+      );
+    }
+  };
+
+  // =====================================================
   // FETCH TODAY'S DAILY TARGETS
   // =====================================================
 
@@ -250,12 +297,32 @@ const StudyTimer = () => {
   }, [dispatch, todayKey]);
 
   // =====================================================
-  // SET FIRST SUBJECT AUTOMATICALLY
+  // FETCH CURRENT RUNNING STUDY
+  //
+  // Backend remains the source of truth.
+  // =====================================================
+
+  useEffect(() => {
+    dispatch(
+      getRunningStudy(),
+    );
+  }, [dispatch]);
+
+  // =====================================================
+  // RESTORE LAST SELECTED SUBJECT
+  //
+  // IMPORTANT:
+  // Do NOT blindly select subjects[0].
+  //
+  // If localStorage contains a valid subject ID,
+  // keep that subject.
+  //
+  // Only use subjects[0] when there is no saved
+  // subject at all.
   // =====================================================
 
   useEffect(() => {
     if (!subjects.length) {
-      setSelectedSubjectId(null);
       return;
     }
 
@@ -266,11 +333,26 @@ const StudyTimer = () => {
           selectedSubjectId,
       );
 
-    if (!selectedStillExists) {
-      setSelectedSubjectId(
+    // Saved subject still exists.
+    if (selectedStillExists) {
+      return;
+    }
+
+    // If selectedSubjectId exists but that target
+    // is no longer available today, use the first
+    // available subject and save it.
+    if (!selectedSubjectId) {
+      saveSelectedSubject(
         subjects[0].id,
       );
+
+      return;
     }
+
+    // Saved subject no longer exists in today's targets.
+    saveSelectedSubject(
+      subjects[0].id,
+    );
   }, [
     subjects,
     selectedSubjectId,
@@ -292,8 +374,14 @@ const StudyTimer = () => {
       ...summary.sessions,
     ].sort(
       (a, b) =>
-        new Date(b.createdAt || b.startTime) -
-        new Date(a.createdAt || a.startTime),
+        new Date(
+          b.createdAt ||
+            b.startTime,
+        ) -
+        new Date(
+          a.createdAt ||
+            a.startTime,
+        ),
     );
 
     const latestSession =
@@ -306,7 +394,11 @@ const StudyTimer = () => {
         latestSession.nextStartTime,
       );
 
-      if (!Number.isNaN(date.getTime())) {
+      if (
+        !Number.isNaN(
+          date.getTime(),
+        )
+      ) {
         setNextStartTimeState(
           date.toLocaleTimeString([], {
             hour: "2-digit",
@@ -319,7 +411,7 @@ const StudyTimer = () => {
   }, [summary]);
 
   // =====================================================
-  // SYNC REDUX RUNNING STATE
+  // SYNC RUNNING SESSION FROM REDUX
   // =====================================================
 
   useEffect(() => {
@@ -327,12 +419,26 @@ const StudyTimer = () => {
       isStudying &&
       currentSession
     ) {
+      const sessionStartTime =
+        new Date(
+          currentSession.startTime,
+        ).getTime();
+
+      if (
+        Number.isNaN(
+          sessionStartTime,
+        )
+      ) {
+        setIsTimerRunning(false);
+        setStartTime(null);
+        setLiveSeconds(0);
+        return;
+      }
+
       setIsTimerRunning(true);
 
       setStartTime(
-        new Date(
-          currentSession.startTime,
-        ).getTime(),
+        sessionStartTime,
       );
 
       const runningSubject =
@@ -348,8 +454,11 @@ const StudyTimer = () => {
             ) === runningSubject,
         );
 
+      // IMPORTANT:
+      // When a running session comes from backend,
+      // remember that subject too.
       if (subject) {
-        setSelectedSubjectId(
+        saveSelectedSubject(
           subject.id,
         );
       }
@@ -359,6 +468,8 @@ const StudyTimer = () => {
 
     if (!isStudying) {
       setIsTimerRunning(false);
+      setStartTime(null);
+      setLiveSeconds(0);
     }
   }, [
     isStudying,
@@ -423,19 +534,24 @@ const StudyTimer = () => {
   const formatTimer = (
     totalSeconds,
   ) => {
+    const safeSeconds = Math.max(
+      0,
+      Number(totalSeconds) || 0,
+    );
+
     const hours =
       Math.floor(
-        totalSeconds / 3600,
+        safeSeconds / 3600,
       );
 
     const minutes =
       Math.floor(
-        (totalSeconds % 3600) /
+        (safeSeconds % 3600) /
           60,
       );
 
     const seconds =
-      totalSeconds % 60;
+      safeSeconds % 60;
 
     return [
       String(hours).padStart(
@@ -460,14 +576,19 @@ const StudyTimer = () => {
   const formatDuration = (
     totalSeconds,
   ) => {
+    const safeSeconds = Math.max(
+      0,
+      Number(totalSeconds) || 0,
+    );
+
     const hours =
       Math.floor(
-        totalSeconds / 3600,
+        safeSeconds / 3600,
       );
 
     const minutes =
       Math.floor(
-        (totalSeconds % 3600) /
+        (safeSeconds % 3600) /
           60,
       );
 
@@ -492,12 +613,18 @@ const StudyTimer = () => {
   const formatHours = (
     hours,
   ) => {
+    const safeHours = Math.max(
+      0,
+      Number(hours) || 0,
+    );
+
     const wholeHours =
-      Math.floor(hours);
+      Math.floor(safeHours);
 
     const minutes =
       Math.round(
-        (hours - wholeHours) *
+        (safeHours -
+          wholeHours) *
           60,
       );
 
@@ -562,6 +689,13 @@ const StudyTimer = () => {
       .split(":")
       .map(Number);
 
+    if (
+      Number.isNaN(hours) ||
+      Number.isNaN(minutes)
+    ) {
+      return null;
+    }
+
     const date =
       new Date();
 
@@ -584,6 +718,7 @@ const StudyTimer = () => {
       if (
         isTimerRunning ||
         startLoading ||
+        runningLoading ||
         !selectedSubject
       ) {
         return;
@@ -592,6 +727,11 @@ const StudyTimer = () => {
       try {
         dispatch(
           clearStudyError(),
+        );
+
+        // Remember selected subject before starting.
+        saveSelectedSubject(
+          selectedSubject.id,
         );
 
         const result =
@@ -606,10 +746,44 @@ const StudyTimer = () => {
           const session =
             result.session;
 
-          setStartTime(
+          const sessionStart =
             new Date(
               session.startTime,
-            ).getTime(),
+            ).getTime();
+
+          if (
+            Number.isNaN(
+              sessionStart,
+            )
+          ) {
+            return;
+          }
+
+          // Save the actual backend subject too.
+          if (session.subject) {
+            const backendSubject =
+              normalizeSubject(
+                session.subject,
+              );
+
+            const matchedSubject =
+              subjects.find(
+                (subject) =>
+                  normalizeSubject(
+                    subject.name,
+                  ) ===
+                  backendSubject,
+              );
+
+            if (matchedSubject) {
+              saveSelectedSubject(
+                matchedSubject.id,
+              );
+            }
+          }
+
+          setStartTime(
+            sessionStart,
           );
 
           setElapsedSeconds(0);
@@ -630,6 +804,26 @@ const StudyTimer = () => {
           error,
         );
 
+        // =================================================
+        // BACKEND MAY RETURN EXISTING RUNNING SESSION
+        // =================================================
+
+        if (
+          error?.session &&
+          error?.session?.status ===
+            "running"
+        ) {
+          dispatch(
+            clearStudyError(),
+          );
+
+          await dispatch(
+            getRunningStudy(),
+          );
+
+          return;
+        }
+
         // =============================================
         // BACKEND REQUIRES LATE REASON
         // =============================================
@@ -647,6 +841,10 @@ const StudyTimer = () => {
             reason.trim()
           ) {
             try {
+              dispatch(
+                clearStudyError(),
+              );
+
               const result =
                 await dispatch(
                   startStudy({
@@ -664,10 +862,26 @@ const StudyTimer = () => {
                 const session =
                   result.session;
 
-                setStartTime(
+                const sessionStart =
                   new Date(
                     session.startTime,
-                  ).getTime(),
+                  ).getTime();
+
+                if (
+                  Number.isNaN(
+                    sessionStart,
+                  )
+                ) {
+                  return;
+                }
+
+                // Save selected subject.
+                saveSelectedSubject(
+                  selectedSubject.id,
+                );
+
+                setStartTime(
+                  sessionStart,
                 );
 
                 setElapsedSeconds(
@@ -693,6 +907,21 @@ const StudyTimer = () => {
                 "Late Start Error:",
                 retryError,
               );
+
+              if (
+                retryError?.session &&
+                retryError?.session
+                  ?.status ===
+                  "running"
+              ) {
+                dispatch(
+                  clearStudyError(),
+                );
+
+                await dispatch(
+                  getRunningStudy(),
+                );
+              }
             }
           }
         }
@@ -711,11 +940,24 @@ const StudyTimer = () => {
       return;
     }
 
+    // IMPORTANT:
+    // Save the subject BEFORE opening the stop modal.
+    // This guarantees the last stopped subject remains
+    // selected after refresh.
+    if (selectedSubject?.id) {
+      saveSelectedSubject(
+        selectedSubject.id,
+      );
+    }
+
     const finalSeconds =
-      Math.floor(
-        (Date.now() -
-          startTime) /
-          1000,
+      Math.max(
+        0,
+        Math.floor(
+          (Date.now() -
+            startTime) /
+            1000,
+        ),
       );
 
     setElapsedSeconds(
@@ -767,10 +1009,25 @@ const StudyTimer = () => {
           clearStudyError(),
         );
 
+        // IMPORTANT:
+        // Keep the subject that was used for this
+        // session before changing any timer state.
+        if (selectedSubject?.id) {
+          saveSelectedSubject(
+            selectedSubject.id,
+          );
+        }
+
         const plannedNextStartTime =
           convertTimeToISO(
             nextStartInput,
           );
+
+        if (
+          !plannedNextStartTime
+        ) {
+          return;
+        }
 
         const result =
           await dispatch(
@@ -808,6 +1065,14 @@ const StudyTimer = () => {
         );
 
         setNextStartInput("");
+
+        // =============================================
+        // REFRESH RUNNING SESSION
+        // =============================================
+
+        await dispatch(
+          getRunningStudy(),
+        ).unwrap();
 
         // =============================================
         // REFRESH TARGETS
@@ -882,9 +1147,13 @@ const StudyTimer = () => {
               session.stopTime,
 
             durationSeconds:
-              (session.durationMinutes ||
-                0) *
-              60,
+              Number(
+                session.durationSeconds ??
+                  Number(
+                    session.durationMinutes ||
+                      0,
+                  ) * 60,
+              ),
 
             reason:
               session.lateReason ||
@@ -898,8 +1167,10 @@ const StudyTimer = () => {
               session.nextStartTime,
 
             scheduleScore:
-              session.scheduleScore ||
-              0,
+              Number(
+                session.scheduleScore ||
+                  0,
+              ),
           };
         },
       );
@@ -933,7 +1204,9 @@ const StudyTimer = () => {
 
   const todayStudySeconds =
     completedStudySeconds +
-    liveSeconds;
+    (isTimerRunning
+      ? liveSeconds
+      : 0);
 
   // =====================================================
   // TODAY TARGET
@@ -1079,13 +1352,6 @@ const StudyTimer = () => {
       normalizeSubject(name);
 
     const styles = {
-      Mathematics: {
-        icon:
-          "bg-purple-100 text-purple-600",
-        gradient:
-          "from-purple-500 to-indigo-500",
-      },
-
       Physics: {
         icon:
           "bg-indigo-100 text-indigo-600",
@@ -1181,17 +1447,13 @@ const StudyTimer = () => {
   // =====================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-1 sm:p-2 lg:p-3">
       <div className="mx-auto max-w-7xl">
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
-
-        {error && (
-          <div className="mb-5 flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+        {errorMessage && (
+          <div className="mb-4 flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-4 py-3">
             <p className="text-sm font-medium text-red-700">
-              {error}
+              {errorMessage}
             </p>
 
             <button
@@ -1208,11 +1470,9 @@ const StudyTimer = () => {
           </div>
         )}
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
@@ -1243,9 +1503,7 @@ const StudyTimer = () => {
           </div>
         </div>
 
-        {/* =================================================
-            NO TARGET
-        ================================================= */}
+        {/* NO TARGET */}
 
         {!targetLoading &&
           subjects.length === 0 && (
@@ -1268,15 +1526,11 @@ const StudyTimer = () => {
             </div>
           )}
 
-        {/* =================================================
-            TIMER + SIDE INFO
-        ================================================= */}
+        {/* TIMER + SIDE INFO */}
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
-          {/* =================================================
-              MAIN TIMER
-          ================================================= */}
+          {/* MAIN TIMER */}
 
           <div className="lg:col-span-2">
             <div
@@ -1289,8 +1543,6 @@ const StudyTimer = () => {
               <div className="pointer-events-none absolute -right-20 -top-20 h-48 w-48 rounded-full bg-purple-100/60 blur-3xl" />
 
               <div className="relative">
-
-                {/* Status */}
 
                 <div className="flex justify-center">
                   {isTimerRunning ? (
@@ -1308,9 +1560,9 @@ const StudyTimer = () => {
                   )}
                 </div>
 
-                {/* Subject */}
+                {/* SUBJECT */}
 
-                <div className="mx-auto mt-6 max-w-md">
+                <div className="mx-auto mt-4 max-w-md">
                   <label className="mb-2 block text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Study Subject
                   </label>
@@ -1324,12 +1576,13 @@ const StudyTimer = () => {
                       disabled={
                         isTimerRunning ||
                         startLoading ||
+                        runningLoading ||
                         targetLoading ||
                         subjects.length ===
                           0
                       }
                       onChange={(e) =>
-                        setSelectedSubjectId(
+                        saveSelectedSubject(
                           e.target.value,
                         )
                       }
@@ -1368,12 +1621,19 @@ const StudyTimer = () => {
                   </div>
                 </div>
 
-                {/* Timer */}
+                {/* TIMER */}
 
                 <div className="mt-8 text-center">
                   <div className="text-5xl font-bold tracking-tight text-slate-900 sm:text-7xl">
-                    {formatTimer(
-                      elapsedSeconds,
+                    {runningLoading &&
+                    !currentSession ? (
+                      <span className="text-3xl text-slate-400 sm:text-4xl">
+                        Loading...
+                      </span>
+                    ) : (
+                      formatTimer(
+                        todayStudySeconds,
+                      )
                     )}
                   </div>
 
@@ -1390,7 +1650,7 @@ const StudyTimer = () => {
                     )}
                 </div>
 
-                {/* Buttons */}
+                {/* BUTTONS */}
 
                 <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                   {!isTimerRunning ? (
@@ -1398,6 +1658,7 @@ const StudyTimer = () => {
                       type="button"
                       disabled={
                         startLoading ||
+                        runningLoading ||
                         summaryLoading ||
                         targetLoading ||
                         !selectedSubject
@@ -1412,6 +1673,12 @@ const StudyTimer = () => {
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
 
                           Starting...
+                        </>
+                      ) : runningLoading ? (
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+
+                          Checking Session...
                         </>
                       ) : (
                         <>
@@ -1461,7 +1728,7 @@ const StudyTimer = () => {
                   )}
                 </div>
 
-                {/* Next Start Notice */}
+                {/* NEXT START NOTICE */}
 
                 {!isTimerRunning &&
                   nextStartTimeState && (
@@ -1483,13 +1750,9 @@ const StudyTimer = () => {
             </div>
           </div>
 
-          {/* =================================================
-              SIDE TARGET CARD
-          ================================================= */}
+          {/* SIDE TARGET CARD */}
 
-          <div className="space-y-6">
-
-            {/* Current Target */}
+          <div className="space-y-4">
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
@@ -1579,8 +1842,6 @@ const StudyTimer = () => {
               </div>
             </div>
 
-            {/* Focus Streak */}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100">
@@ -1593,27 +1854,22 @@ const StudyTimer = () => {
                   </p>
 
                   <h3 className="text-xl font-bold text-slate-900">
-                    5 Days
+                    —
                   </h3>
                 </div>
               </div>
 
               <p className="mt-4 text-xs leading-5 text-slate-500">
-                Keep your study sessions
-                consistent to build a longer
-                streak.
+                Your study streak will appear here
+                when the streak tracking API is connected.
               </p>
             </div>
           </div>
         </div>
 
-        {/* =================================================
-            TODAY SUMMARY
-        ================================================= */}
+        {/* TODAY SUMMARY */}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-          {/* Study Time */}
+        <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
@@ -1638,8 +1894,6 @@ const StudyTimer = () => {
               </div>
             </div>
           </div>
-
-          {/* Sessions */}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
@@ -1666,8 +1920,6 @@ const StudyTimer = () => {
             </div>
           </div>
 
-          {/* Daily Target */}
-
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
@@ -1691,8 +1943,6 @@ const StudyTimer = () => {
               </div>
             </div>
           </div>
-
-          {/* Daily Progress */}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-start justify-between">
@@ -1722,11 +1972,9 @@ const StudyTimer = () => {
           </div>
         </div>
 
-        {/* =================================================
-            TODAY'S SESSIONS
-        ================================================= */}
+        {/* TODAY'S SESSIONS */}
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-semibold text-slate-900">
@@ -1848,8 +2096,6 @@ const StudyTimer = () => {
                 );
               })}
 
-            {/* Active Session */}
-
             {isTimerRunning &&
               startTime && (
                 <div className="rounded-xl border border-purple-100 bg-purple-50 p-4">
@@ -1863,6 +2109,7 @@ const StudyTimer = () => {
                         <h3 className="text-sm font-semibold text-purple-900">
                           {
                             selectedSubject?.name ||
+                            currentSession?.subject ||
                             "Study"
                           }
                         </h3>
@@ -1887,11 +2134,9 @@ const StudyTimer = () => {
           </div>
         </div>
 
-        {/* =================================================
-            TODAY SUBJECT OVERVIEW
-        ================================================= */}
+        {/* TODAY SUBJECT OVERVIEW */}
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div>
             <h2 className="font-semibold text-slate-900">
               Today's Subject Overview
@@ -2032,11 +2277,9 @@ const StudyTimer = () => {
           </div>
         </div>
 
-        {/* =================================================
-            INFORMATION NOTE
-        ================================================= */}
+        {/* INFORMATION NOTE */}
 
-        <div className="mt-6 rounded-2xl border border-purple-100 bg-purple-50 p-4">
+        <div className="mt-4 rounded-2xl border border-purple-100 bg-purple-50 p-4">
           <div className="flex gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
               <Target className="h-4 w-4 text-purple-600" />
@@ -2059,15 +2302,11 @@ const StudyTimer = () => {
         </div>
       </div>
 
-      {/* ===================================================
-          STOP SESSION MODAL
-      =================================================== */}
+      {/* STOP SESSION MODAL */}
 
       {showStopModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-
-            {/* Modal Header */}
 
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div>
@@ -2094,15 +2333,12 @@ const StudyTimer = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
-
             <form
               onSubmit={
                 handleConfirmStop
               }
               className="p-5"
             >
-              {/* Duration */}
 
               <div className="rounded-xl bg-purple-50 p-4 text-center">
                 <p className="text-xs font-medium text-purple-600">
@@ -2117,11 +2353,10 @@ const StudyTimer = () => {
 
                 <p className="mt-1 text-xs text-purple-600">
                   {selectedSubject?.name ||
+                    currentSession?.subject ||
                     "Study"}
                 </p>
               </div>
-
-              {/* Reason */}
 
               <div className="mt-5">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -2177,8 +2412,6 @@ const StudyTimer = () => {
                 </div>
               </div>
 
-              {/* Next Start */}
-
               <div className="mt-4">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">
                   When will you start again?
@@ -2212,9 +2445,7 @@ const StudyTimer = () => {
                 </p>
               </div>
 
-              {/* Buttons */}
-
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={
@@ -2251,3 +2482,4 @@ const StudyTimer = () => {
 };
 
 export default StudyTimer;
+

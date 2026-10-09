@@ -86,27 +86,25 @@ export const getProfile = createAsyncThunk(
   },
 );
 
-// =====================================================
+
+// ===============================
 // LOGOUT USER
-// =====================================================
+// POST /api/auth/logout
+// ===============================
 
 export const logoutUser = createAsyncThunk(
-  "user/logoutUser",
+  "auth/logoutUser",
   async (_, { rejectWithValue }) => {
     try {
-      // Backend currently does not have a logout API.
-      // JWT is stored on frontend, so remove it here.
+      const response = await api.post("/auth/logout");
 
-      localStorage.removeItem("token");
-
-      return {
-        success: true,
-        message: "Logout successful",
-      };
+      return response.data;
     } catch (error) {
-      return rejectWithValue("Logout failed");
+      return rejectWithValue(
+        error.response?.data?.message || "Logout failed"
+      );
     }
-  },
+  }
 );
 
 // =====================================================
@@ -263,36 +261,24 @@ const userSlice = createSlice({
         }
       })
 
-      // ===============================================
-      // LOGOUT
-      // ===============================================
-
       .addCase(logoutUser.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
 
-      .addCase(logoutUser.fulfilled, (state, action) => {
-        state.loading = false;
+    .addCase(logoutUser.fulfilled, (state, action) => {
+      state.loading = false;
+      state.isAuthenticated = false;
+      state.user = null;
+      state.token = null;
+      state.error = null;
+    })
 
-        state.user = null;
-        state.token = null;
-
-        state.successMessage =
-          action.payload?.message || "Logout successful";
-
-        state.error = null;
-
-        localStorage.removeItem("token");
-      })
-
-      .addCase(logoutUser.rejected, (state, action) => {
-        state.loading = false;
-
-        state.error =
-          action.payload || "Logout failed";
-      });
-  },
+    .addCase(logoutUser.rejected, (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    })
+},
 });
 
 // =====================================================

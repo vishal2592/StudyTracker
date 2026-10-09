@@ -20,8 +20,24 @@ import StudyAnalytics from "./pages/StudyAnalytics";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
+import { useDispatch, useSelector } from "react-redux";
+import { useEffect } from "react";
+import { getProfile } from "./redux/slicer/userSlice";
+
 
 function App() {
+  const dispatch = useDispatch();
+
+  const token = useSelector(
+    (state) => state.user?.token
+  );
+
+  useEffect(() => {
+    if (token) {
+      dispatch(getProfile());
+    }
+  }, [dispatch, token]);
+
   return (
     <Routes>
       {/* =========================================

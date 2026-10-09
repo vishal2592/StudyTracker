@@ -4,7 +4,7 @@ import api from "../api";
 
 // =====================================================
 // GET DAILY TARGETS
-// GET /api/daily-targets?date=YYYY-MM-DD
+// GET /api/targets?date=YYYY-MM-DD
 // =====================================================
 
 export const getTargets = createAsyncThunk(
@@ -30,17 +30,14 @@ export const getTargets = createAsyncThunk(
 
 // =====================================================
 // CREATE DAILY TARGET
-// POST /api/daily-targets
+// POST /api/targets
 // =====================================================
 
 export const createTarget = createAsyncThunk(
   "dailyTarget/createTarget",
   async (targetData, { rejectWithValue }) => {
     try {
-      const response = await api.post(
-        "/targets",
-        targetData,
-      );
+      const response = await api.post("/targets", targetData);
 
       return response.data;
     } catch (error) {
@@ -55,7 +52,7 @@ export const createTarget = createAsyncThunk(
 
 // =====================================================
 // EDIT DAILY TARGET
-// PATCH /api/daily-targets/:id
+// PATCH /api/targets/:id
 // =====================================================
 
 export const editTarget = createAsyncThunk(
@@ -80,7 +77,7 @@ export const editTarget = createAsyncThunk(
 
 // =====================================================
 // TOGGLE DAILY TARGET
-// PATCH /api/daily-targets/:id/toggle
+// PATCH /api/targets/:id/toggle
 // =====================================================
 
 export const toggleTarget = createAsyncThunk(
@@ -104,16 +101,14 @@ export const toggleTarget = createAsyncThunk(
 
 // =====================================================
 // DELETE DAILY TARGET
-// DELETE /api/daily-targets/:id
+// DELETE /api/targets/:id
 // =====================================================
 
 export const deleteTarget = createAsyncThunk(
   "dailyTarget/deleteTarget",
   async (id, { rejectWithValue }) => {
     try {
-      const response = await api.delete(
-        `/targets/${id}`,
-      );
+      const response = await api.delete(`/targets/${id}`);
 
       return {
         ...response.data,
@@ -144,6 +139,7 @@ const initialState = {
 
   targetCount: "0/0",
 
+  // Score
   positiveScore: 0,
   negativeScore: 0,
 
@@ -168,29 +164,44 @@ const dailyTargetSlice = createSlice({
   initialState,
 
   reducers: {
+    // ===================================================
+    // CLEAR ERROR
+    // ===================================================
+
     clearDailyTargetError: (state) => {
       state.error = null;
     },
+
+    // ===================================================
+    // CLEAR SUCCESS MESSAGE
+    // ===================================================
 
     clearDailyTargetSuccess: (state) => {
       state.successMessage = null;
     },
 
+    // ===================================================
+    // CLEAR ALL DAILY TARGET DATA
+    // ===================================================
+
     clearDailyTargets: (state) => {
       state.targets = [];
       state.selectedDate = "";
+
       state.totalTargets = 0;
       state.completedTargets = 0;
       state.pendingTargets = 0;
+
       state.targetCount = "0/0";
+
       state.positiveScore = 0;
       state.negativeScore = 0;
     },
   },
 
-  // ===================================================
-  // EXTRA REDUCER
-  // ===================================================
+  // =====================================================
+  // EXTRA REDUCERS
+  // =====================================================
 
   extraReducers: (builder) => {
     builder
@@ -208,27 +219,32 @@ const dailyTargetSlice = createSlice({
         state.loading = false;
         state.error = null;
 
-        state.targets = action.payload.targets || [];
+        const data = action.payload;
 
-        state.selectedDate = action.payload.date || "";
+        state.targets = data.targets || [];
 
-        state.totalTargets =
-          action.payload.totalTargets || 0;
+        state.selectedDate = data.date || "";
+
+        state.totalTargets = data.totalTargets || 0;
 
         state.completedTargets =
-          action.payload.completedTargets || 0;
+          data.completedTargets || 0;
 
         state.pendingTargets =
-          action.payload.pendingTargets || 0;
+          data.pendingTargets || 0;
 
         state.targetCount =
-          action.payload.targetCount || "0/0";
+          data.targetCount || "0/0";
+
+        // ===============================================
+        // SCORE FROM BACKEND
+        // ===============================================
 
         state.positiveScore =
-          action.payload.positiveScore || 0;
+          data.positiveScore || 0;
 
         state.negativeScore =
-          action.payload.negativeScore || 0;
+          data.negativeScore || 0;
       })
 
       .addCase(getTargets.rejected, (state, action) => {
@@ -258,13 +274,37 @@ const dailyTargetSlice = createSlice({
         if (newTarget) {
           state.targets.push(newTarget);
 
+          // ---------------------------------------------
+          // Target count
+          // ---------------------------------------------
+
           state.totalTargets += 1;
 
           state.pendingTargets += 1;
 
-          state.targetCount = `${state.completedTargets}/${state.totalTargets}`;
+          state.targetCount =
+            `${state.completedTargets}/${state.totalTargets}`;
 
-          state.negativeScore -= 1;
+          // ---------------------------------------------
+          // Pending target = -1
+          // ---------------------------------------------
+
+          if (!newTarget.isCompleted) {
+            state.negativeScore -= 1;
+          }
+
+          // ---------------------------------------------
+          // Safety
+          // If backend somehow creates completed target
+          // ---------------------------------------------
+
+          if (newTarget.isCompleted) {
+            state.completedTargets += 1;
+            state.positiveScore += 1;
+
+            state.targetCount =
+              `${state.completedTargets}/${state.totalTargets}`;
+          }
         }
 
         state.successMessage =
@@ -298,7 +338,8 @@ const dailyTargetSlice = createSlice({
 
         if (updatedTarget) {
           const index = state.targets.findIndex(
-            (target) => target._id === updatedTarget._id,
+            (target) =>
+              target._id === updatedTarget._id,
           );
 
           if (index !== -1) {
@@ -337,32 +378,50 @@ const dailyTargetSlice = createSlice({
 
         if (updatedTarget) {
           const index = state.targets.findIndex(
-            (target) => target._id === updatedTarget._id,
+            (target) =>
+              target._id === updatedTarget._id,
           );
 
           if (index !== -1) {
             state.targets[index] = updatedTarget;
           }
 
-          // ---------------------------------------------
-          // Update counts
-          // ---------------------------------------------
+          // =============================================
+          // TARGET COMPLETED
+          // =============================================
 
           if (updatedTarget.isCompleted) {
             state.completedTargets += 1;
+
             state.pendingTargets -= 1;
 
+            // +1 positive
             state.positiveScore += 1;
+
+            // Remove -1 negative
+            // Example: -3 -> -2
             state.negativeScore += 1;
-          } else {
+          }
+
+          // =============================================
+          // TARGET MARKED INCOMPLETE
+          // =============================================
+
+          else {
             state.completedTargets -= 1;
+
             state.pendingTargets += 1;
 
+            // Remove +1 positive
             state.positiveScore -= 1;
+
+            // Add -1 negative
+            // Example: -2 -> -3
             state.negativeScore -= 1;
           }
 
-          state.targetCount = `${state.completedTargets}/${state.totalTargets}`;
+          state.targetCount =
+            `${state.completedTargets}/${state.totalTargets}`;
         }
 
         state.successMessage =
@@ -393,25 +452,47 @@ const dailyTargetSlice = createSlice({
         state.error = null;
 
         const deletedTarget = state.targets.find(
-          (target) => target._id === action.payload.id,
+          (target) =>
+            target._id === action.payload.id,
         );
 
         if (deletedTarget) {
+          // ---------------------------------------------
+          // Remove target
+          // ---------------------------------------------
+
           state.targets = state.targets.filter(
-            (target) => target._id !== action.payload.id,
+            (target) =>
+              target._id !== action.payload.id,
           );
 
           state.totalTargets -= 1;
 
+          // ---------------------------------------------
+          // Completed target deleted
+          // ---------------------------------------------
+
           if (deletedTarget.isCompleted) {
             state.completedTargets -= 1;
+
+            // Remove +1 positive
             state.positiveScore -= 1;
-          } else {
+          }
+
+          // ---------------------------------------------
+          // Incomplete target deleted
+          // ---------------------------------------------
+
+          else {
             state.pendingTargets -= 1;
+
+            // Remove -1 negative
+            // Example: -3 -> -2
             state.negativeScore += 1;
           }
 
-          state.targetCount = `${state.completedTargets}/${state.totalTargets}`;
+          state.targetCount =
+            `${state.completedTargets}/${state.totalTargets}`;
         }
 
         state.successMessage =
@@ -430,7 +511,7 @@ const dailyTargetSlice = createSlice({
 });
 
 // =====================================================
-// EXPORT
+// ACTIONS
 // =====================================================
 
 export const {
@@ -438,5 +519,9 @@ export const {
   clearDailyTargetSuccess,
   clearDailyTargets,
 } = dailyTargetSlice.actions;
+
+// =====================================================
+// REDUCER
+// =====================================================
 
 export default dailyTargetSlice.reducer;

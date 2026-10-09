@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   User,
@@ -35,14 +34,14 @@ const Register = () => {
 
   const [showPassword, setShowPassword] = useState(false);
 
-  const [showConfirmPassword, setShowConfirmPassword] =
-    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     password: "",
+    neetExamDate: "",
     confirmPassword: "",
     agree: false,
   });
@@ -50,6 +49,24 @@ const Register = () => {
   const [errors, setErrors] = useState({});
 
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // =====================================================
+  // DISABLE PAGE SCROLL
+  // Restore previous overflow settings on unmount
+  // =====================================================
+
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
 
   // =====================================================
   // HANDLE INPUT
@@ -129,11 +146,7 @@ const Register = () => {
     // Email
     if (!formData.email.trim()) {
       newErrors.email = "Email is required.";
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        formData.email.trim(),
-      )
-    ) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       newErrors.email = "Please enter a valid email.";
     }
 
@@ -141,27 +154,26 @@ const Register = () => {
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required.";
     } else if (!/^[0-9]{10}$/.test(formData.phone.trim())) {
-      newErrors.phone =
-        "Enter a valid 10-digit phone number.";
+      newErrors.phone = "Enter a valid 10-digit phone number.";
+    }
+
+    // NEET Exam Date
+    if (!formData.neetExamDate) {
+      newErrors.neetExamDate = "NEET exam date is required.";
     }
 
     // Password
     if (!formData.password) {
       newErrors.password = "Password is required.";
     } else if (formData.password.length < 6) {
-      newErrors.password =
-        "Password must be at least 6 characters.";
+      newErrors.password = "Password must be at least 6 characters.";
     }
 
     // Confirm password
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword =
-        "Please confirm your password.";
-    } else if (
-      formData.password !== formData.confirmPassword
-    ) {
-      newErrors.confirmPassword =
-        "Passwords do not match.";
+      newErrors.confirmPassword = "Please confirm your password.";
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match.";
     }
 
     // Terms
@@ -195,12 +207,11 @@ const Register = () => {
       email: formData.email.trim().toLowerCase(),
       mobileNumber: formData.phone.trim(),
       password: formData.password,
+      neetExamDate: formData.neetExamDate,
     };
 
     try {
-      const result = await dispatch(
-        registerUser(userData),
-      ).unwrap();
+      const result = await dispatch(registerUser(userData)).unwrap();
 
       // -------------------------------------------------
       // Registration successful
@@ -222,10 +233,7 @@ const Register = () => {
       console.error("Registration Error:", error);
 
       // Handle duplicate email
-      if (
-        typeof error === "string" &&
-        error.toLowerCase().includes("email")
-      ) {
+      if (typeof error === "string" && error.toLowerCase().includes("email")) {
         setErrors((prev) => ({
           ...prev,
           email: error,
@@ -251,7 +259,7 @@ const Register = () => {
 
   if (isSuccess) {
     return (
-      <div className="flex h-screen w-full items-center justify-center overflow-hidden bg-slate-50 px-4">
+      <div className="flex min-h-[72dvh] lg:min-h-[100dvh]  w-full items-center justify-center overflow-hidden bg-slate-50 px-4">
         <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-xl shadow-slate-200/60 sm:p-10">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
             <CheckCircle2 size={34} />
@@ -262,8 +270,8 @@ const Register = () => {
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Your StudyFlow account has been created
-            successfully. Redirecting you to login...
+            Your StudyFlow account has been created successfully. Redirecting
+            you to login...
           </p>
         </div>
       </div>
@@ -271,17 +279,16 @@ const Register = () => {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-slate-50">
-      <div className="flex h-full w-full items-center justify-center px-3 py-2 sm:px-5 sm:py-3 lg:px-8 lg:py-4">
-        <div className="flex h-full max-h-[700px] w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 sm:rounded-3xl">
+    <div className="flex min-h-[72dvh] lg:min-h-[100dvh]  w-full items-center justify-center overflow-hidden bg-slate-50">
+      <div className="flex w-full items-center justify-center px-3 py-2 sm:px-5 sm:py-3 lg:px-8 lg:py-4">
+        <div className="flex w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 sm:rounded-3xl">
 
           {/* =================================================
               LEFT BRANDING
               DESKTOP ONLY
           ================================================= */}
 
-          <div className="relative hidden w-[42%] overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-8 text-white lg:flex lg:flex-col lg:justify-between xl:p-10">
-
+          <div className="relative hidden w-[42%] overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 p-6 text-white lg:flex lg:flex-col lg:justify-between xl:p-10">
             {/* Decorative circles */}
 
             <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/10" />
@@ -297,9 +304,7 @@ const Register = () => {
                 </div>
 
                 <div>
-                  <h1 className="text-lg font-bold">
-                    StudyFlow
-                  </h1>
+                  <h1 className="text-lg font-bold">StudyTracker</h1>
 
                   <p className="text-[11px] text-indigo-100">
                     Study Dashboard
@@ -313,7 +318,6 @@ const Register = () => {
             <div className="relative z-10 max-w-md">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium backdrop-blur-sm">
                 <Sparkles size={13} />
-
                 Start your journey
               </div>
 
@@ -324,9 +328,8 @@ const Register = () => {
               </h2>
 
               <p className="mt-4 max-w-sm text-sm leading-6 text-indigo-100">
-                Track your study time, manage daily targets,
-                build good habits and stay consistent with
-                StudyFlow.
+                Track your study time, manage daily targets, build good habits
+                and stay consistent with StudyFlow.
               </p>
 
               <div className="mt-7 grid grid-cols-2 gap-3">
@@ -363,7 +366,7 @@ const Register = () => {
 
             {/* Mobile Logo */}
 
-            <div className="flex shrink-0 items-center justify-center pt-3 lg:hidden">
+            <div className="flex shrink-0 items-center justify-center pt-2 lg:hidden">
               <div className="flex items-center gap-2">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white">
                   <BookOpen size={18} />
@@ -371,7 +374,7 @@ const Register = () => {
 
                 <div>
                   <h1 className="text-base font-bold text-slate-900">
-                    StudyFlow
+                    StudyTracker
                   </h1>
 
                   <p className="text-[9px] font-medium text-slate-400">
@@ -383,16 +386,12 @@ const Register = () => {
 
             {/* Form Container */}
 
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 py-3 sm:px-7 sm:py-4 lg:px-10 xl:px-12">
+            <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden px-4 py-2 sm:px-7 sm:py-3 lg:px-10 xl:px-12">
               <div className="w-full max-w-lg">
 
                 {/* Heading */}
 
-                <div className="mb-3 text-center sm:mb-4 lg:text-left">
-                  <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600 lg:mx-0">
-                    <User size={16} />
-                  </div>
-
+                <div className="mb-2 text-center sm:mb-3 lg:text-left">
                   <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                     Create your account
                   </h2>
@@ -407,7 +406,7 @@ const Register = () => {
                 ================================================= */}
 
                 {registerError && (
-                  <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+                  <div className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
                     <p className="text-[10px] leading-4 text-red-600 sm:text-xs">
                       {registerError}
                     </p>
@@ -420,9 +419,8 @@ const Register = () => {
 
                 <form
                   onSubmit={handleSubmit}
-                  className="space-y-2.5 sm:space-y-3"
+                  className="space-y-2 sm:space-y-2.5"
                 >
-
                   {/* =========================================
                       FULL NAME
                   ========================================= */}
@@ -439,10 +437,7 @@ const Register = () => {
                           : "border-slate-200 focus-within:border-indigo-400"
                       }`}
                     >
-                      <User
-                        size={15}
-                        className="shrink-0 text-slate-400"
-                      />
+                      <User size={15} className="shrink-0 text-slate-400" />
 
                       <input
                         type="text"
@@ -477,10 +472,7 @@ const Register = () => {
                           : "border-slate-200 focus-within:border-indigo-400"
                       }`}
                     >
-                      <Mail
-                        size={15}
-                        className="shrink-0 text-slate-400"
-                      />
+                      <Mail size={15} className="shrink-0 text-slate-400" />
 
                       <input
                         type="email"
@@ -515,10 +507,7 @@ const Register = () => {
                           : "border-slate-200 focus-within:border-indigo-400"
                       }`}
                     >
-                      <Phone
-                        size={15}
-                        className="shrink-0 text-slate-400"
-                      />
+                      <Phone size={15} className="shrink-0 text-slate-400" />
 
                       <input
                         type="tel"
@@ -539,6 +528,38 @@ const Register = () => {
                   </div>
 
                   {/* =========================================
+                      NEET EXAM DATE
+                  ========================================= */}
+
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                      NEET Exam Date
+                    </label>
+
+                    <div
+                      className={`flex h-9 items-center rounded-lg border bg-white px-2.5 transition sm:h-10 ${
+                        errors.neetExamDate
+                          ? "border-red-300"
+                          : "border-slate-200 focus-within:border-indigo-400"
+                      }`}
+                    >
+                      <input
+                        type="date"
+                        name="neetExamDate"
+                        value={formData.neetExamDate}
+                        onChange={handleChange}
+                        className="w-full bg-transparent text-xs text-slate-700 outline-none"
+                      />
+                    </div>
+
+                    {errors.neetExamDate && (
+                      <p className="mt-0.5 text-[9px] text-red-500">
+                        {errors.neetExamDate}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* =========================================
                       PASSWORD
                   ========================================= */}
 
@@ -554,17 +575,10 @@ const Register = () => {
                           : "border-slate-200 focus-within:border-indigo-400"
                       }`}
                     >
-                      <Lock
-                        size={15}
-                        className="shrink-0 text-slate-400"
-                      />
+                      <Lock size={15} className="shrink-0 text-slate-400" />
 
                       <input
-                        type={
-                          showPassword
-                            ? "text"
-                            : "password"
-                        }
+                        type={showPassword ? "text" : "password"}
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
@@ -574,14 +588,10 @@ const Register = () => {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setShowPassword((prev) => !prev)
-                        }
+                        onClick={() => setShowPassword((prev) => !prev)}
                         className="ml-1 text-slate-400 hover:text-slate-600"
                         aria-label={
-                          showPassword
-                            ? "Hide password"
-                            : "Show password"
+                          showPassword ? "Hide password" : "Show password"
                         }
                       >
                         {showPassword ? (
@@ -634,17 +644,10 @@ const Register = () => {
                           : "border-slate-200 focus-within:border-indigo-400"
                       }`}
                     >
-                      <Lock
-                        size={15}
-                        className="shrink-0 text-slate-400"
-                      />
+                      <Lock size={15} className="shrink-0 text-slate-400" />
 
                       <input
-                        type={
-                          showConfirmPassword
-                            ? "text"
-                            : "password"
-                        }
+                        type={showConfirmPassword ? "text" : "password"}
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
@@ -654,11 +657,7 @@ const Register = () => {
 
                       <button
                         type="button"
-                        onClick={() =>
-                          setShowConfirmPassword(
-                            (prev) => !prev,
-                          )
-                        }
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
                         className="ml-1 text-slate-400 hover:text-slate-600"
                         aria-label={
                           showConfirmPassword
@@ -734,9 +733,7 @@ const Register = () => {
                       <>
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 
-                        <span>
-                          Creating account...
-                        </span>
+                        <span>Creating account...</span>
                       </>
                     ) : (
                       <>
@@ -750,7 +747,7 @@ const Register = () => {
 
                 {/* Login */}
 
-                <p className="mt-3 text-center text-[10px] text-slate-500 sm:mt-4 sm:text-xs">
+                <p className="mt-2 pb-1 text-center text-[10px] text-slate-500 sm:mt-3 sm:text-xs">
                   Already have an account?{" "}
                   <Link
                     to="/login"
@@ -766,7 +763,7 @@ const Register = () => {
 
             <div className="hidden shrink-0 pb-3 text-center lg:block">
               <p className="text-[10px] text-slate-400">
-                © 2026 StudyFlow · Your progress. Your journey.
+                © 2026 StudyTracker · Your progress. Your journey.
               </p>
             </div>
           </div>
@@ -777,4 +774,3 @@ const Register = () => {
 };
 
 export default Register;
-

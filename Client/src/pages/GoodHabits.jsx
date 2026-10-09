@@ -651,14 +651,14 @@ const GoodHabits = () => {
   // ===================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-slate-50 p-1 sm:p-2 lg:p-3">
       <div className="mx-auto max-w-7xl">
 
         {/* =================================================
             HEADER
         ================================================= */}
 
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
           <div className="flex items-center gap-3">
 
@@ -706,7 +706,7 @@ const GoodHabits = () => {
             DATE SELECTOR
         ================================================= */}
 
-        <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 
           <button
             type="button"
@@ -767,7 +767,7 @@ const GoodHabits = () => {
             SUMMARY CARDS
         ================================================= */}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           {/* TOTAL */}
 
@@ -883,7 +883,7 @@ const GoodHabits = () => {
             PROGRESS
         ================================================= */}
 
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
           <div className="mb-3 flex items-center justify-between">
 
@@ -922,7 +922,7 @@ const GoodHabits = () => {
             MAIN GRID
         ================================================= */}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
           {/* =================================================
               HABITS LIST
@@ -1299,7 +1299,7 @@ const GoodHabits = () => {
               SIDEBAR
           ================================================= */}
 
-          <div className="space-y-6">
+          <div className="space-y-4">
 
             {/* STREAK CARD */}
 
@@ -1457,7 +1457,7 @@ const GoodHabits = () => {
             BOTTOM CATEGORY SECTION
         ================================================= */}
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
           <div className="mb-4 flex items-center gap-2">
 
@@ -1649,7 +1649,7 @@ const GoodHabits = () => {
 
               {/* REMINDER */}
 
-              <div className="mb-6">
+              <div className="mb-4">
 
                 <label
                   htmlFor="habit-reminder"

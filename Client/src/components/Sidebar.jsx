@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Timer,
@@ -13,7 +13,22 @@ import {
   LogOut,
   ChevronRight,
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  useDispatch,
+  useSelector,
+} from "react-redux";
+
+import {
+  logoutUser,
+  selectUser,
+} from "../redux/slicer/userSlice";
+
 
 const menuItems = [
   {
@@ -48,76 +63,153 @@ const menuItems = [
   },
 ];
 
+
 const Sidebar = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const user = useSelector(selectUser);
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+
+  // ==========================================
+  // CLOSE MOBILE SIDEBAR
+  // ==========================================
   const closeMobileSidebar = () => {
     setIsMobileOpen(false);
   };
 
+
+  // ==========================================
+  // LOCK BACKGROUND SCROLL ON MOBILE
+  // Restore previous scroll position on close
+  // ==========================================
+  useEffect(() => {
+    if (!isMobileOpen) return;
+
+    // Only lock scroll on mobile/tablet
+    if (window.innerWidth >= 1024) return;
+
+    const scrollY = window.scrollY;
+
+    const previousBodyStyles = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    };
+
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = "0";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.position = previousBodyStyles.position;
+      document.body.style.top = previousBodyStyles.top;
+      document.body.style.left = previousBodyStyles.left;
+      document.body.style.right = previousBodyStyles.right;
+      document.body.style.width = previousBodyStyles.width;
+      document.body.style.overflow = previousBodyStyles.overflow;
+
+      window.scrollTo(0, scrollY);
+    };
+  }, [isMobileOpen]);
+
+
+  // ==========================================
+  // USER NAME
+  // ==========================================
+  const userName =
+    user?.fullName ||
+    user?.name ||
+    "Student";
+
+
   // ==========================================
   // OPEN PROFILE
-  // User card -> Profile page
   // ==========================================
   const handleProfile = () => {
     closeMobileSidebar();
     navigate("/profile");
   };
 
+
   // ==========================================
   // LOGOUT
   // ==========================================
-  const handleLogout = () => {
+  const handleLogout = async () => {
     closeMobileSidebar();
+
+    try {
+      await dispatch(logoutUser()).unwrap();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
 
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
-    navigate("/login");
+    navigate("/login", {
+      replace: true,
+    });
   };
+
 
   return (
     <>
-      {/* =====================================================
+      {/* ==========================================
           MOBILE MENU BUTTON
-      ===================================================== */}
+      ========================================== */}
       <button
         type="button"
         onClick={() => setIsMobileOpen(true)}
         className="fixed left-4 top-4 z-50 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 lg:hidden"
         aria-label="Open menu"
+        aria-expanded={isMobileOpen}
       >
         <Menu size={21} />
       </button>
 
-      {/* =====================================================
+
+      {/* ==========================================
           MOBILE OVERLAY
-      ===================================================== */}
+      ========================================== */}
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[2px] lg:hidden"
           onClick={closeMobileSidebar}
+          aria-hidden="true"
         />
       )}
 
-      {/* =====================================================
+
+      {/* ==========================================
           SIDEBAR
-      ===================================================== */}
+      ========================================== */}
       <aside
         className={`
-          fixed left-0 top-0 z-50 flex h-screen w-[260px]
+          fixed left-0 top-0 z-50 flex h-dvh w-[260px]
           flex-col border-r border-slate-200 bg-white
           transition-transform duration-300 ease-in-out
           lg:translate-x-0
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
+          ${
+            isMobileOpen
+              ? "translate-x-0"
+              : "-translate-x-full"
+          }
         `}
       >
-        {/* ===================================================
+
+        {/* ==========================================
             LOGO
-        =================================================== */}
+        ========================================== */}
         <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-slate-100 px-6">
+
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white">
               <BookOpen size={21} />
@@ -125,7 +217,7 @@ const Sidebar = () => {
 
             <div>
               <h1 className="text-[17px] font-bold tracking-tight text-slate-900">
-                StudyFlow
+                Study Tracker
               </h1>
 
               <p className="text-[11px] font-medium text-slate-400">
@@ -143,12 +235,15 @@ const Sidebar = () => {
           >
             <X size={19} />
           </button>
+
         </div>
 
-        {/* ===================================================
+
+        {/* ==========================================
             MAIN MENU
-        =================================================== */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        ========================================== */}
+        <div className="flex-1 px-4 py-6">
+
           <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">
             Main Menu
           </p>
@@ -193,21 +288,16 @@ const Sidebar = () => {
               );
             })}
           </nav>
+
         </div>
 
-        {/* ===================================================
+
+        {/* ==========================================
             BOTTOM SECTION
-        =================================================== */}
+        ========================================== */}
         <div className="shrink-0 border-t border-slate-100 p-4">
-          {/* =================================================
-              USER PROFILE CARD
 
-              IMPORTANT:
-              No separate Profile menu item.
-
-              User clicks Vishal / Student card
-              -> /profile
-          ================================================= */}
+          {/* USER PROFILE CARD */}
           <button
             type="button"
             onClick={handleProfile}
@@ -215,13 +305,13 @@ const Sidebar = () => {
           >
             {/* Avatar */}
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600 transition group-hover:bg-indigo-100">
-              V
+              {userName.charAt(0).toUpperCase()}
             </div>
 
             {/* User Information */}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-800">
-                Vishal
+                {userName}
               </p>
 
               <p className="text-[11px] text-slate-400">
@@ -236,44 +326,15 @@ const Sidebar = () => {
             />
           </button>
 
-          {/* =================================================
-              SETTINGS
-          ================================================= */}
-          <NavLink
-            to="/settings"
-            onClick={closeMobileSidebar}
-            className={({ isActive }) =>
-              `mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                isActive
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-              }`
-            }
-          >
-            <Settings size={18} />
+          {/* SETTINGS - currently disabled */}
+          {/* LOGOUT - currently disabled */}
 
-            <span>Settings</span>
-          </NavLink>
-
-          {/* =================================================
-              LOGOUT
-          ================================================= */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="group mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-400 transition group-hover:bg-red-100 group-hover:text-red-600">
-              <LogOut size={16} />
-            </div>
-
-            <span>Logout</span>
-          </button>
         </div>
+
       </aside>
     </>
   );
 };
 
-export default Sidebar;
 
+export default Sidebar;

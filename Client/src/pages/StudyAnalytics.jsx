@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,146 +14,65 @@ import {
   Zap,
 } from "lucide-react";
 
+import { useDispatch, useSelector } from "react-redux";
+
+import {
+  getStudySummary,
+  getMonthlyOverview,
+  getStudyCalendar,
+} from "../redux/slicer/studySlice";
+
+import { getTargets } from "../redux/slicer/dailyTargetSlice";
+
+import { getHabits } from "../redux/slicer/habitSlice";
+
 const StudyAnalytics = () => {
+  const dispatch = useDispatch();
+
+  // =====================================================
+  // REDUX STATE
+  // =====================================================
+
+  const {
+    summary,
+    summaryLoading,
+    monthlyOverview,
+    monthlyLoading,
+    calendar,
+    calendarLoading,
+  } = useSelector((state) => state.study);
+
+  const {
+    targets,
+    totalTargets,
+    completedTargets,
+    pendingTargets,
+    positiveScore: targetPositiveScore,
+    negativeScore: targetNegativeScore,
+    loading: targetsLoading,
+  } = useSelector((state) => state.dailyTarget);
+
+  // =====================================================
+  // HABIT REDUX STATE
+  // =====================================================
+
+  const {
+    habits: reduxHabits,
+    totalHabits,
+    completedHabits,
+    pendingHabits,
+    positiveScore: habitPositiveScoreFromApi,
+    negativeScore: habitNegativeScoreFromApi,
+    loading: habitsLoading,
+  } = useSelector((state) => state.habit);
+
   // =====================================================
   // DATE STATE
   // =====================================================
 
   const [selectedDate, setSelectedDate] = useState(
-    new Date()
+    new Date(),
   );
-
-  // =====================================================
-  // DEMO DAILY DATA
-  // Later this data can come from Redux / API
-  // =====================================================
-
-  const dailyData = {
-    "2026-10-06": {
-      studySeconds: 8 * 3600 + 35 * 60,
-
-      sessions: [
-        {
-          id: 1,
-          subject: "Biology",
-          startTime: "06:10 PM",
-          endTime: "08:10 PM",
-          durationSeconds: 2 * 3600,
-        },
-        {
-          id: 2,
-          subject: "Physics",
-          startTime: "09:05 PM",
-          endTime: "11:30 PM",
-          durationSeconds: 2 * 3600 + 25 * 60,
-        },
-        {
-          id: 3,
-          subject: "Chemistry",
-          startTime: "11:45 PM",
-          endTime: "01:55 AM",
-          durationSeconds: 2 * 3600 + 10 * 60,
-        },
-        {
-          id: 4,
-          subject: "MCQ Practice",
-          startTime: "02:15 AM",
-          endTime: "04:15 AM",
-          durationSeconds: 2 * 3600,
-        },
-      ],
-
-      targets: [
-        {
-          id: 1,
-          title: "Biology - Human Physiology",
-          duration: "2 hours",
-          completed: true,
-        },
-        {
-          id: 2,
-          title: "Physics - Current Electricity",
-          duration: "2 hours",
-          completed: true,
-        },
-        {
-          id: 3,
-          title: "Chemistry - Organic Chemistry",
-          duration: "1.5 hours",
-          completed: true,
-        },
-        {
-          id: 4,
-          title: "50 MCQs Practice",
-          duration: "1 hour",
-          completed: false,
-        },
-        {
-          id: 5,
-          title: "Revision - Previous Questions",
-          duration: "1 hour",
-          completed: true,
-        },
-      ],
-
-      habits: [
-        {
-          id: 1,
-          title: "Wake up early",
-          subtitle: "Before 6:00 AM",
-          completed: true,
-        },
-        {
-          id: 2,
-          title: "Drink enough water",
-          subtitle: "8 glasses",
-          completed: true,
-        },
-        {
-          id: 3,
-          title: "No social media",
-          subtitle: "During study hours",
-          completed: true,
-        },
-        {
-          id: 4,
-          title: "Exercise",
-          subtitle: "30 minutes",
-          completed: false,
-        },
-        {
-          id: 5,
-          title: "Sleep on time",
-          subtitle: "Before 11:00 PM",
-          completed: false,
-        },
-      ],
-
-      punctuality: [
-        {
-          id: 1,
-          expected: "09:10 PM",
-          actual: "08:50 PM",
-          status: "early",
-          score: 5,
-        },
-        {
-          id: 2,
-          expected: "11:45 PM",
-          actual: "11:45 PM",
-          status: "on-time",
-          score: 0,
-        },
-        {
-          id: 3,
-          expected: "02:00 AM",
-          actual: "02:15 AM",
-          status: "late",
-          score: -5,
-        },
-      ],
-    },
-  };
 
   // =====================================================
   // DATE HELPERS
@@ -164,14 +82,24 @@ const StudyAnalytics = () => {
     const year = date.getFullYear();
 
     const month = String(
-      date.getMonth() + 1
+      date.getMonth() + 1,
     ).padStart(2, "0");
 
     const day = String(
-      date.getDate()
+      date.getDate(),
     ).padStart(2, "0");
 
     return `${year}-${month}-${day}`;
+  };
+
+  const getMonthKey = (date) => {
+    const year = date.getFullYear();
+
+    const month = String(
+      date.getMonth() + 1,
+    ).padStart(2, "0");
+
+    return `${year}-${month}`;
   };
 
   const formatDate = (date) => {
@@ -192,100 +120,86 @@ const StudyAnalytics = () => {
   };
 
   // =====================================================
-  // SELECTED DAY DATA
+  // SELECTED DATE KEY
   // =====================================================
 
   const dateKey = getDateKey(selectedDate);
 
-  const selectedDayData = dailyData[dateKey] || {
-    studySeconds: 0,
-    sessions: [],
-    targets: [],
-    habits: [],
-    punctuality: [],
-  };
+  const monthKey = getMonthKey(selectedDate);
 
   // =====================================================
-  // DERIVED DATA
+  // FETCH SELECTED DAY DATA
   // =====================================================
 
-  const completedTargets = selectedDayData.targets.filter(
-    (target) => target.completed
-  ).length;
+  useEffect(() => {
+    dispatch(getStudySummary(dateKey));
+    dispatch(getTargets(dateKey));
+    dispatch(getHabits(dateKey));
+  }, [dispatch, dateKey]);
 
-  const totalTargets =
-    selectedDayData.targets.length;
+  // =====================================================
+  // FETCH MONTHLY DATA
+  // =====================================================
 
-  const pendingTargets =
-    totalTargets - completedTargets;
+  useEffect(() => {
+    dispatch(getMonthlyOverview(monthKey));
+    dispatch(getStudyCalendar(monthKey));
+  }, [dispatch, monthKey]);
 
-  const completedHabits =
-    selectedDayData.habits.filter(
-      (habit) => habit.completed
-    ).length;
+  // =====================================================
+  // SAFE DATA
+  // =====================================================
 
-  const totalHabits =
-    selectedDayData.habits.length;
+  const selectedDaySummary = summary || {};
 
-  const pendingHabits =
-    totalHabits - completedHabits;
+  const selectedSessions =
+    Array.isArray(selectedDaySummary.sessions)
+      ? selectedDaySummary.sessions
+      : [];
 
-  const earlyStarts =
-    selectedDayData.punctuality.filter(
-      (item) => item.status === "early"
-    ).length;
+  const selectedTargets =
+    Array.isArray(targets)
+      ? targets
+      : [];
 
-  const lateStarts =
-    selectedDayData.punctuality.filter(
-      (item) => item.status === "late"
-    ).length;
+  const selectedHabits =
+    Array.isArray(reduxHabits)
+      ? reduxHabits
+      : [];
 
-  const twelveHourBonus =
-    selectedDayData.studySeconds >=
-    12 * 60 * 60
-      ? 5
-      : 0;
+  const selectedCalendar =
+    Array.isArray(calendar)
+      ? calendar
+      : [];
 
-  const targetPositiveScore =
-    completedTargets;
+  // =====================================================
+  // STUDY TIME
+  // =====================================================
 
-  const targetNegativeScore =
-    pendingTargets;
+  const totalStudyMinutes =
+    Number(
+      selectedDaySummary.totalMinutes,
+    ) || 0;
 
-  const habitPositiveScore =
-    completedHabits * 5;
-
-  const habitNegativeScore =
-    pendingHabits * 5;
-
-  const punctualityPositiveScore =
-    earlyStarts * 5;
-
-  const punctualityNegativeScore =
-    lateStarts * 5;
-
-  const positiveScore =
-    twelveHourBonus +
-    targetPositiveScore +
-    habitPositiveScore +
-    punctualityPositiveScore;
-
-  const negativeScore =
-    targetNegativeScore +
-    habitNegativeScore +
-    punctualityNegativeScore;
+  const totalStudySeconds =
+    totalStudyMinutes * 60;
 
   // =====================================================
   // FORMAT STUDY TIME
   // =====================================================
 
   const formatStudyTime = (seconds) => {
+    const safeSeconds = Math.max(
+      0,
+      Number(seconds) || 0,
+    );
+
     const hours = Math.floor(
-      seconds / 3600
+      safeSeconds / 3600,
     );
 
     const minutes = Math.floor(
-      (seconds % 3600) / 60
+      (safeSeconds % 3600) / 60,
     );
 
     if (hours === 0) {
@@ -300,21 +214,422 @@ const StudyAnalytics = () => {
   };
 
   // =====================================================
+  // FORMAT MINUTES
+  // =====================================================
+
+  const formatMinutes = (minutes) => {
+    const safeMinutes = Math.max(
+      0,
+      Number(minutes) || 0,
+    );
+
+    return formatStudyTime(
+      safeMinutes * 60,
+    );
+  };
+
+  // =====================================================
+  // FORMAT SESSION TIME
+  // =====================================================
+
+  const formatSessionTime = (time) => {
+    if (!time) {
+      return "--";
+    }
+
+    const date = new Date(time);
+
+    if (Number.isNaN(date.getTime())) {
+      return "--";
+    }
+
+    return date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    });
+  };
+
+  // =====================================================
+  // SESSION DATA FOR UI
+  // =====================================================
+
+  const sessions = useMemo(() => {
+    return selectedSessions.map(
+      (session, index) => {
+        const durationMinutes =
+          Number(
+            session.durationMinutes,
+          ) || 0;
+
+        return {
+          id:
+            session._id ||
+            index + 1,
+
+          subject:
+            session.subject ||
+            "Other",
+
+          startTime:
+            formatSessionTime(
+              session.startTime,
+            ),
+
+          endTime:
+            formatSessionTime(
+              session.stopTime,
+            ),
+
+          durationSeconds:
+            durationMinutes * 60,
+
+          nextStartTime:
+            session.nextStartTime,
+
+          startType:
+            session.startType,
+
+          lateReason:
+            session.lateReason,
+
+          scheduleScore:
+            Number(
+              session.scheduleScore,
+            ) || 0,
+        };
+      },
+    );
+  }, [selectedSessions]);
+
+  // =====================================================
+  // TARGET DATA
+  // =====================================================
+
+  const normalizedTargets = useMemo(() => {
+    return selectedTargets.map(
+      (target, index) => {
+        const durationMinutes =
+          Number(
+            target.durationMinutes,
+          ) || 0;
+
+        return {
+          id:
+            target._id ||
+            index + 1,
+
+          title:
+            target.title ||
+            "Untitled Target",
+
+          durationMinutes,
+
+          duration:
+            formatMinutes(
+              durationMinutes,
+            ),
+
+          completed:
+            Boolean(
+              target.isCompleted,
+            ),
+        };
+      },
+    );
+  }, [selectedTargets]);
+
+  // =====================================================
+  // TARGET COUNTS
+  // =====================================================
+
+  const safeTotalTargets =
+    Number(totalTargets) ||
+    normalizedTargets.length ||
+    0;
+
+  const safeCompletedTargets =
+    Number(completedTargets) || 0;
+
+  const safePendingTargets =
+    Number(pendingTargets) ||
+    Math.max(
+      0,
+      safeTotalTargets -
+        safeCompletedTargets,
+    );
+
+  // =====================================================
+  // PUNCTUALITY
+  // =====================================================
+
+  const punctuality =
+    selectedSessions
+      .filter(
+        (session) =>
+          session.startType,
+      )
+      .map((session, index) => {
+        const status =
+          session.startType;
+
+        const expected =
+          session.nextStartTime;
+
+        const actual =
+          session.startTime;
+
+        let score =
+          Number(
+            session.scheduleScore,
+          ) || 0;
+
+        return {
+          id: index + 1,
+
+          expected:
+            formatSessionTime(
+              expected,
+            ),
+
+          actual:
+            formatSessionTime(
+              actual,
+            ),
+
+          status,
+
+          score,
+        };
+      });
+
+  // =====================================================
+  // EARLY / LATE
+  // =====================================================
+
+  const earlyStarts =
+    punctuality.filter(
+      (item) =>
+        item.status === "early",
+    ).length;
+
+  const lateStarts =
+    punctuality.filter(
+      (item) =>
+        item.status === "late",
+    ).length;
+
+  const onTimeStarts =
+    punctuality.filter(
+      (item) =>
+        item.status === "on-time",
+    ).length;
+
+  // =====================================================
+  // PUNCTUALITY SCORE
+  // =====================================================
+
+  const punctualityPositiveScore =
+    Number(
+      selectedDaySummary
+        ?.punctuality
+        ?.positiveScore,
+    ) ||
+    punctuality
+      .filter(
+        (item) =>
+          item.score > 0,
+      )
+      .reduce(
+        (sum, item) =>
+          sum + item.score,
+        0,
+      );
+
+  const punctualityNegativeScore =
+    Math.abs(
+      Number(
+        selectedDaySummary
+          ?.punctuality
+          ?.negativeScore,
+      ) ||
+        punctuality
+          .filter(
+            (item) =>
+              item.score < 0,
+          )
+          .reduce(
+            (sum, item) =>
+              sum + item.score,
+            0,
+          ),
+    );
+
+  // =====================================================
+  // 12 HOUR BONUS
+  // =====================================================
+
+  const twelveHourBonus =
+    totalStudyMinutes >=
+    12 * 60
+      ? 5
+      : 0;
+
+  // =====================================================
+  // TARGET SCORE
+  // =====================================================
+
+  const safeTargetPositiveScore =
+    Number(targetPositiveScore) ||
+    safeCompletedTargets;
+
+  const safeTargetNegativeScore =
+    Math.abs(
+      Number(
+        targetNegativeScore,
+      ) ||
+        safePendingTargets,
+    );
+
+  // =====================================================
+  // HABITS
+  // =====================================================
+
+  const habits = useMemo(() => {
+    return selectedHabits.map(
+      (habit, index) => {
+        const points =
+          Math.abs(
+            Number(habit.points),
+          ) || 0;
+
+        return {
+          id:
+            habit.id ||
+            habit._id ||
+            index + 1,
+
+          title:
+            habit.name ||
+            "Untitled Habit",
+
+          subtitle: [
+            habit.reminder
+              ? habit.reminder
+              : null,
+
+            habit.category
+              ? habit.category
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" • ") ||
+            "Daily habit",
+
+          completed:
+            Boolean(
+              habit.completed ??
+                habit.isCompleted,
+            ),
+
+          points,
+
+          description:
+            habit.description ||
+            "",
+
+          frequency:
+            habit.frequency ||
+            "Daily",
+
+          completedAt:
+            habit.completedAt ||
+            null,
+        };
+      },
+    );
+  }, [selectedHabits]);
+
+  // =====================================================
+  // SAFE HABIT COUNTS
+  // =====================================================
+
+  const safeTotalHabits =
+    Number(totalHabits) ||
+    habits.length ||
+    0;
+
+  const safeCompletedHabits =
+    Number(completedHabits) ||
+    habits.filter(
+      (habit) =>
+        habit.completed,
+    ).length ||
+    0;
+
+  const safePendingHabits =
+    Number(pendingHabits) ||
+    Math.max(
+      0,
+      safeTotalHabits -
+        safeCompletedHabits,
+    );
+
+  // =====================================================
+  // HABIT SCORES
+  // =====================================================
+
+  const safeHabitPositiveScore =
+    Number(
+      habitPositiveScoreFromApi,
+    ) || 0;
+
+  const safeHabitNegativeScore =
+    Math.abs(
+      Number(
+        habitNegativeScoreFromApi,
+      ) || 0,
+    );
+
+  // =====================================================
+  // TOTAL SCORE
+  // =====================================================
+
+  const positiveScore =
+    twelveHourBonus +
+    safeTargetPositiveScore +
+    safeHabitPositiveScore +
+    punctualityPositiveScore;
+
+  const negativeScore =
+    safeTargetNegativeScore +
+    safeHabitNegativeScore +
+    punctualityNegativeScore;
+
+  // =====================================================
   // CHANGE DATE
   // =====================================================
 
   const changeDate = (amount) => {
-    const newDate = new Date(selectedDate);
+    const newDate =
+      new Date(selectedDate);
 
     newDate.setDate(
-      newDate.getDate() + amount
+      newDate.getDate() + amount,
     );
 
     setSelectedDate(newDate);
   };
 
+  // =====================================================
+  // GO TO TODAY
+  // =====================================================
+
   const goToToday = () => {
-    setSelectedDate(new Date());
+    setSelectedDate(
+      new Date(),
+    );
   };
 
   // =====================================================
@@ -322,11 +637,14 @@ const StudyAnalytics = () => {
   // =====================================================
 
   const isToday = useMemo(() => {
-    const todayKey = getDateKey(
-      new Date()
-    );
+    const todayKey =
+      getDateKey(
+        new Date(),
+      );
 
-    return todayKey === dateKey;
+    return (
+      todayKey === dateKey
+    );
   }, [dateKey]);
 
   // =====================================================
@@ -338,9 +656,26 @@ const StudyAnalytics = () => {
       new Date(
         selectedDate.getFullYear(),
         selectedDate.getMonth(),
-        1
-      )
+        1,
+      ),
     );
+
+  // =====================================================
+  // SYNC CALENDAR MONTH WITH SELECTED DATE
+  // =====================================================
+
+  useEffect(() => {
+    setCalendarMonth(
+      new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        1,
+      ),
+    );
+  }, [
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+  ]);
 
   const calendarYear =
     calendarMonth.getFullYear();
@@ -348,21 +683,27 @@ const StudyAnalytics = () => {
   const calendarMonthIndex =
     calendarMonth.getMonth();
 
-  const daysInMonth = new Date(
-    calendarYear,
-    calendarMonthIndex + 1,
-    0
-  ).getDate();
+  const daysInMonth =
+    new Date(
+      calendarYear,
+      calendarMonthIndex + 1,
+      0,
+    ).getDate();
 
-  const firstDay = new Date(
-    calendarYear,
-    calendarMonthIndex,
-    1
-  ).getDay();
+  const firstDay =
+    new Date(
+      calendarYear,
+      calendarMonthIndex,
+      1,
+    ).getDay();
 
   const calendarDays = [];
 
-  for (let i = 0; i < firstDay; i++) {
+  for (
+    let i = 0;
+    i < firstDay;
+    i++
+  ) {
     calendarDays.push(null);
   }
 
@@ -374,60 +715,166 @@ const StudyAnalytics = () => {
     calendarDays.push(day);
   }
 
-  const changeCalendarMonth = (amount) => {
+  // =====================================================
+  // CHANGE CALENDAR MONTH
+  // =====================================================
+
+  const changeCalendarMonth = (
+    amount,
+  ) => {
     setCalendarMonth(
       new Date(
         calendarYear,
-        calendarMonthIndex + amount,
-        1
-      )
+        calendarMonthIndex +
+          amount,
+        1,
+      ),
     );
   };
 
-  const selectCalendarDate = (day) => {
+  // =====================================================
+  // SELECT CALENDAR DATE
+  // =====================================================
+
+  const selectCalendarDate = (
+    day,
+  ) => {
     if (!day) return;
 
-    const newDate = new Date(
-      calendarYear,
-      calendarMonthIndex,
-      day
-    );
+    const newDate =
+      new Date(
+        calendarYear,
+        calendarMonthIndex,
+        day,
+      );
 
-    const today = new Date();
+    const today =
+      new Date();
 
     if (newDate > today) {
       return;
     }
 
-    setSelectedDate(newDate);
+    setSelectedDate(
+      newDate,
+    );
   };
 
   // =====================================================
-  // MONTHLY SUMMARY
+  // CALENDAR DATA HELPER
   // =====================================================
 
-  const monthlySummary = {
-    totalStudyHours: 86,
-    twelveHourDays: 6,
-    targetsCompleted: 42,
-    positiveScore: 318,
-    negativeScore: 74,
+  const getCalendarDayData = (
+    cellKey,
+  ) => {
+    if (!Array.isArray(calendar)) {
+      return null;
+    }
+
+    return (
+      calendar.find(
+        (item) => {
+          const itemDate =
+            item.date ||
+            item.selectedDate ||
+            item.day;
+
+          if (!itemDate) {
+            return false;
+          }
+
+          if (
+            typeof itemDate ===
+            "string" &&
+            /^\d{4}-\d{2}-\d{2}$/.test(
+              itemDate,
+            )
+          ) {
+            return (
+              itemDate ===
+              cellKey
+            );
+          }
+
+          const parsed =
+            new Date(
+              itemDate,
+            );
+
+          if (
+            Number.isNaN(
+              parsed.getTime(),
+            )
+          ) {
+            return false;
+          }
+
+          return (
+            getDateKey(
+              parsed,
+            ) === cellKey
+          );
+        },
+      ) || null
+    );
   };
+
+  // =====================================================
+  // MONTHLY DATA NORMALIZATION
+  // =====================================================
+
+  const monthlyData =
+    monthlyOverview || {};
+
+  const monthlyTotalStudyHours =
+    Number(
+      monthlyData.totalStudyHours ??
+        monthlyData.totalHours ??
+        0,
+    );
+
+  const monthlyTwelveHourDays =
+    Number(
+      monthlyData.twelveHourDays ??
+        monthlyData.twelveHourDaysCount ??
+        0,
+    );
+
+  const monthlyTargetsCompleted =
+    Number(
+      monthlyData.targetsCompleted ??
+        monthlyData.completedTargets ??
+        0,
+    );
+
+  const monthlyPositiveScore =
+    Number(
+      monthlyData.positiveScore ??
+        0,
+    );
+
+  const monthlyNegativeScore =
+    Math.abs(
+      Number(
+        monthlyData.negativeScore ??
+          0,
+      ),
+    );
 
   // =====================================================
   // RENDER
   // =====================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 p-1 sm:p-2 md:p-3">
 
       {/* =================================================
           PAGE HEADER
       ================================================= */}
 
-      <div className="mb-5">
+      <div className="mb-3">
 
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="flex flex-col md:flex-row lg:items-center md:justify-between gap-4">
 
           <div>
             <div className="flex items-center gap-2">
@@ -465,7 +912,7 @@ const StudyAnalytics = () => {
           DATE NAVIGATION
       ================================================= */}
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-5">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-4">
 
         <div className="flex items-center justify-between gap-3">
 
@@ -489,7 +936,9 @@ const StudyAnalytics = () => {
             </div>
 
             <h2 className="text-lg md:text-xl font-bold text-slate-800">
-              {formatDate(selectedDate)}
+              {formatDate(
+                selectedDate,
+              )}
             </h2>
 
             {isToday && (
@@ -519,10 +968,22 @@ const StudyAnalytics = () => {
       </div>
 
       {/* =================================================
+          LOADING
+      ================================================= */}
+
+      {(summaryLoading ||
+        targetsLoading ||
+        habitsLoading) && (
+        <div className="mb-5 bg-white rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-500">
+          Loading analytics...
+        </div>
+      )}
+
+      {/* =================================================
           SUMMARY CARDS
       ================================================= */}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
 
         <AnalyticsCard
           icon={
@@ -532,12 +993,12 @@ const StudyAnalytics = () => {
             />
           }
           title={formatStudyTime(
-            selectedDayData.studySeconds
+            totalStudySeconds,
           )}
           subtitle="Study Time"
           extra={
-            selectedDayData.studySeconds >=
-            12 * 3600
+            totalStudyMinutes >=
+            12 * 60
               ? "12h target completed"
               : "Target 12h"
           }
@@ -551,9 +1012,9 @@ const StudyAnalytics = () => {
               className="text-purple-500"
             />
           }
-          title={`${completedTargets}/${totalTargets}`}
+          title={`${safeCompletedTargets}/${safeTotalTargets}`}
           subtitle="Targets"
-          extra={`${pendingTargets} pending`}
+          extra={`${safePendingTargets} pending`}
           bg="bg-purple-50"
         />
 
@@ -602,13 +1063,13 @@ const StudyAnalytics = () => {
           MAIN CONTENT
       ================================================= */}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
 
         {/* ===============================================
             LEFT / MAIN COLUMN
         =============================================== */}
 
-        <div className="xl:col-span-2 space-y-5">
+        <div className="xl:col-span-2 space-y-4">
 
           {/* =============================================
               STUDY SESSIONS
@@ -616,7 +1077,7 @@ const StudyAnalytics = () => {
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
 
               <div>
                 <h2 className="text-lg font-bold text-slate-800">
@@ -629,24 +1090,28 @@ const StudyAnalytics = () => {
               </div>
 
               <div className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold">
-                {selectedDayData.sessions.length} Sessions
+                {sessions.length} Sessions
               </div>
 
             </div>
 
-            {selectedDayData.sessions.length ===
+            {sessions.length ===
             0 ? (
               <EmptyState
-                icon={<Clock3 size={24} />}
+                icon={
+                  <Clock3 size={24} />
+                }
                 text="No study sessions recorded for this day."
               />
             ) : (
               <div className="space-y-3">
 
-                {selectedDayData.sessions.map(
+                {sessions.map(
                   (session) => (
                     <div
-                      key={session.id}
+                      key={
+                        session.id
+                      }
                       className="border border-slate-100 rounded-xl p-4 hover:border-slate-200 transition"
                     >
 
@@ -663,13 +1128,19 @@ const StudyAnalytics = () => {
 
                           <div>
                             <h3 className="font-semibold text-slate-800">
-                              {session.subject}
+                              {
+                                session.subject
+                              }
                             </h3>
 
                             <p className="text-xs text-slate-500 mt-1">
-                              {session.startTime}{" "}
+                              {
+                                session.startTime
+                              }{" "}
                               →{" "}
-                              {session.endTime}
+                              {
+                                session.endTime
+                              }
                             </p>
                           </div>
 
@@ -679,7 +1150,7 @@ const StudyAnalytics = () => {
 
                           <div className="text-base font-bold text-slate-800">
                             {formatStudyTime(
-                              session.durationSeconds
+                              session.durationSeconds,
                             )}
                           </div>
 
@@ -692,13 +1163,13 @@ const StudyAnalytics = () => {
                       </div>
 
                     </div>
-                  )
+                  ),
                 )}
 
               </div>
             )}
 
-            <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
 
               <span className="text-sm font-semibold text-slate-600">
                 Total Study Time
@@ -706,7 +1177,7 @@ const StudyAnalytics = () => {
 
               <span className="text-lg font-bold text-emerald-600">
                 {formatStudyTime(
-                  selectedDayData.studySeconds
+                  totalStudySeconds,
                 )}
               </span>
 
@@ -720,7 +1191,7 @@ const StudyAnalytics = () => {
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
 
               <div>
                 <h2 className="text-lg font-bold text-slate-800">
@@ -733,24 +1204,29 @@ const StudyAnalytics = () => {
               </div>
 
               <div className="text-sm font-bold text-purple-600">
-                {completedTargets}/{totalTargets}
+                {safeCompletedTargets}/
+                {safeTotalTargets}
               </div>
 
             </div>
 
-            {selectedDayData.targets.length ===
+            {normalizedTargets.length ===
             0 ? (
               <EmptyState
-                icon={<Target size={24} />}
+                icon={
+                  <Target size={24} />
+                }
                 text="No targets recorded for this day."
               />
             ) : (
               <div className="space-y-2">
 
-                {selectedDayData.targets.map(
+                {normalizedTargets.map(
                   (target) => (
                     <div
-                      key={target.id}
+                      key={
+                        target.id
+                      }
                       className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${
                         target.completed
                           ? "bg-emerald-50/50 border-emerald-100"
@@ -781,11 +1257,15 @@ const StudyAnalytics = () => {
                                 : "text-slate-600"
                             }`}
                           >
-                            {target.title}
+                            {
+                              target.title
+                            }
                           </p>
 
                           <p className="text-[11px] text-slate-500 mt-0.5">
-                            {target.duration}
+                            {
+                              target.duration
+                            }
                           </p>
 
                         </div>
@@ -805,7 +1285,7 @@ const StudyAnalytics = () => {
                       </span>
 
                     </div>
-                  )
+                  ),
                 )}
 
               </div>
@@ -819,7 +1299,7 @@ const StudyAnalytics = () => {
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-            <div className="mb-5">
+            <div className="mb-4">
 
               <h2 className="text-lg font-bold text-slate-800">
                 Good Habits
@@ -831,19 +1311,37 @@ const StudyAnalytics = () => {
 
             </div>
 
-            {selectedDayData.habits.length ===
+            {habitsLoading ? (
+              <div className="py-8 flex flex-col items-center justify-center text-center">
+
+                <div className="w-12 h-12 rounded-xl bg-slate-50 text-slate-400 flex items-center justify-center">
+                  <Clock3 size={24} />
+                </div>
+
+                <p className="text-sm text-slate-500 mt-3">
+                  Loading habits...
+                </p>
+
+              </div>
+            ) : habits.length ===
             0 ? (
               <EmptyState
-                icon={<CheckCircle2 size={24} />}
+                icon={
+                  <CheckCircle2
+                    size={24}
+                  />
+                }
                 text="No habits recorded for this day."
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
-                {selectedDayData.habits.map(
+                {habits.map(
                   (habit) => (
                     <div
-                      key={habit.id}
+                      key={
+                        habit.id
+                      }
                       className={`p-4 rounded-xl border ${
                         habit.completed
                           ? "bg-emerald-50/50 border-emerald-100"
@@ -868,13 +1366,19 @@ const StudyAnalytics = () => {
                           )}
 
                           <div>
+
                             <p className="text-sm font-semibold text-slate-700">
-                              {habit.title}
+                              {
+                                habit.title
+                              }
                             </p>
 
                             <p className="text-[11px] text-slate-500 mt-1">
-                              {habit.subtitle}
+                              {
+                                habit.subtitle
+                              }
                             </p>
+
                           </div>
 
                         </div>
@@ -887,14 +1391,14 @@ const StudyAnalytics = () => {
                           }`}
                         >
                           {habit.completed
-                            ? "+5"
-                            : "-5"}
+                            ? `+${habit.points}`
+                            : `-${habit.points}`}
                         </span>
 
                       </div>
 
                     </div>
-                  )
+                  ),
                 )}
 
               </div>
@@ -908,7 +1412,7 @@ const StudyAnalytics = () => {
             RIGHT COLUMN
         =============================================== */}
 
-        <div className="space-y-5">
+        <div className="space-y-4">
 
           {/* =============================================
               SCORE BREAKDOWN
@@ -916,7 +1420,7 @@ const StudyAnalytics = () => {
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-            <div className="mb-5">
+            <div className="mb-4">
 
               <h2 className="text-lg font-bold text-slate-800">
                 Score Breakdown
@@ -937,14 +1441,14 @@ const StudyAnalytics = () => {
               />
 
               <ScoreRow
-                label={`Completed Targets (${completedTargets})`}
-                value={`+${targetPositiveScore}`}
+                label={`Completed Targets (${safeCompletedTargets})`}
+                value={`+${safeTargetPositiveScore}`}
                 positive
               />
 
               <ScoreRow
-                label={`Completed Habits (${completedHabits})`}
-                value={`+${habitPositiveScore}`}
+                label={`Completed Habits (${safeCompletedHabits})`}
+                value={`+${safeHabitPositiveScore}`}
                 positive
               />
 
@@ -957,14 +1461,14 @@ const StudyAnalytics = () => {
               <div className="my-4 border-t border-slate-100" />
 
               <ScoreRow
-                label={`Pending Targets (${pendingTargets})`}
-                value={`-${targetNegativeScore}`}
+                label={`Pending Targets (${safePendingTargets})`}
+                value={`-${safeTargetNegativeScore}`}
                 positive={false}
               />
 
               <ScoreRow
-                label={`Incomplete Habits (${pendingHabits})`}
-                value={`-${habitNegativeScore}`}
+                label={`Incomplete Habits (${safePendingHabits})`}
+                value={`-${safeHabitNegativeScore}`}
                 positive={false}
               />
 
@@ -976,7 +1480,7 @@ const StudyAnalytics = () => {
 
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-slate-100">
+            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100">
 
               <div className="rounded-xl bg-orange-50 p-3">
                 <p className="text-[11px] text-slate-500">
@@ -1008,7 +1512,7 @@ const StudyAnalytics = () => {
 
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-            <div className="mb-5">
+            <div className="mb-4">
 
               <h2 className="text-lg font-bold text-slate-800">
                 Start Performance
@@ -1020,34 +1524,43 @@ const StudyAnalytics = () => {
 
             </div>
 
-            {selectedDayData.punctuality.length ===
+            {punctuality.length ===
             0 ? (
               <EmptyState
-                icon={<Zap size={24} />}
+                icon={
+                  <Zap size={24} />
+                }
                 text="No planned start times recorded."
               />
             ) : (
               <div className="space-y-3">
 
-                {selectedDayData.punctuality.map(
+                {punctuality.map(
                   (item) => {
 
                     const isEarly =
-                      item.status === "early";
+                      item.status ===
+                      "early";
 
                     const isLate =
-                      item.status === "late";
+                      item.status ===
+                      "late";
 
                     return (
                       <div
-                        key={item.id}
+                        key={
+                          item.id
+                        }
                         className="p-3 rounded-xl border border-slate-100"
                       >
 
                         <div className="flex items-center justify-between mb-3">
 
                           <span className="text-xs font-semibold text-slate-500">
-                            Start #{item.id}
+                            Start #
+                            {
+                              item.id
+                            }
                           </span>
 
                           <span
@@ -1076,7 +1589,9 @@ const StudyAnalytics = () => {
                             </p>
 
                             <p className="text-sm font-bold text-slate-700 mt-1">
-                              {item.expected}
+                              {
+                                item.expected
+                              }
                             </p>
                           </div>
 
@@ -1086,7 +1601,9 @@ const StudyAnalytics = () => {
                             </p>
 
                             <p className="text-sm font-bold text-slate-700 mt-1">
-                              {item.actual}
+                              {
+                                item.actual
+                              }
                             </p>
                           </div>
 
@@ -1101,16 +1618,18 @@ const StudyAnalytics = () => {
                               : "text-slate-500"
                           }`}
                         >
-                          {item.score > 0
+                          {item.score >
+                          0
                             ? `+${item.score} Positive`
-                            : item.score < 0
+                            : item.score <
+                              0
                             ? `${item.score} Negative`
                             : "0 On Time"}
                         </div>
 
                       </div>
                     );
-                  }
+                  },
                 )}
 
               </div>
@@ -1126,9 +1645,9 @@ const StudyAnalytics = () => {
           MONTHLY OVERVIEW
       ================================================= */}
 
-      <section className="mt-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <section className="mt-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
 
           <div>
             <h2 className="text-lg font-bold text-slate-800">
@@ -1146,7 +1665,7 @@ const StudyAnalytics = () => {
               {
                 month: "long",
                 year: "numeric",
-              }
+              },
             )}
           </div>
 
@@ -1156,7 +1675,7 @@ const StudyAnalytics = () => {
 
           <MiniSummary
             label="Study Hours"
-            value={`${monthlySummary.totalStudyHours}h`}
+            value={`${monthlyTotalStudyHours}h`}
             icon={
               <Clock3
                 size={18}
@@ -1167,7 +1686,9 @@ const StudyAnalytics = () => {
 
           <MiniSummary
             label="12h+ Days"
-            value={monthlySummary.twelveHourDays}
+            value={
+              monthlyTwelveHourDays
+            }
             icon={
               <Trophy
                 size={18}
@@ -1178,7 +1699,9 @@ const StudyAnalytics = () => {
 
           <MiniSummary
             label="Targets Done"
-            value={monthlySummary.targetsCompleted}
+            value={
+              monthlyTargetsCompleted
+            }
             icon={
               <Target
                 size={18}
@@ -1189,7 +1712,7 @@ const StudyAnalytics = () => {
 
           <MiniSummary
             label="Positive"
-            value={`+${monthlySummary.positiveScore}`}
+            value={`+${monthlyPositiveScore}`}
             icon={
               <TrendingUp
                 size={18}
@@ -1200,7 +1723,7 @@ const StudyAnalytics = () => {
 
           <MiniSummary
             label="Negative"
-            value={`-${monthlySummary.negativeScore}`}
+            value={`-${monthlyNegativeScore}`}
             icon={
               <TrendingDown
                 size={18}
@@ -1217,9 +1740,9 @@ const StudyAnalytics = () => {
           CALENDAR
       ================================================= */}
 
-      <section className="mt-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <section className="mt-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
 
           <div>
             <h2 className="text-lg font-bold text-slate-800">
@@ -1235,20 +1758,28 @@ const StudyAnalytics = () => {
 
             <button
               onClick={() =>
-                changeCalendarMonth(-1)
+                changeCalendarMonth(
+                  -1,
+                )
               }
               className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50"
             >
-              <ArrowLeft size={17} />
+              <ArrowLeft
+                size={17}
+              />
             </button>
 
             <button
               onClick={() =>
-                changeCalendarMonth(1)
+                changeCalendarMonth(
+                  1,
+                )
               }
               className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center hover:bg-slate-50"
             >
-              <ArrowRight size={17} />
+              <ArrowRight
+                size={17}
+              />
             </button>
 
           </div>
@@ -1261,7 +1792,7 @@ const StudyAnalytics = () => {
             {
               month: "long",
               year: "numeric",
-            }
+            },
           )}
         </div>
 
@@ -1304,35 +1835,54 @@ const StudyAnalytics = () => {
                 );
               }
 
-              const cellDate = new Date(
-                calendarYear,
-                calendarMonthIndex,
-                day
-              );
+              const cellDate =
+                new Date(
+                  calendarYear,
+                  calendarMonthIndex,
+                  day,
+                );
 
               const cellKey =
-                getDateKey(cellDate);
+                getDateKey(
+                  cellDate,
+                );
 
               const isSelected =
-                cellKey === dateKey;
+                cellKey ===
+                dateKey;
+
+              const today =
+                new Date();
 
               const isFuture =
                 cellDate >
-                new Date();
+                today;
 
-              const hasData =
-                Boolean(
-                  dailyData[cellKey]
+              const calendarData =
+                getCalendarDayData(
+                  cellKey,
+                );
+
+              const studyMinutes =
+                Number(
+                  calendarData?.totalMinutes ??
+                    calendarData?.studyMinutes ??
+                    calendarData?.durationMinutes ??
+                    0,
                 );
 
               const studySeconds =
-                dailyData[cellKey]
-                  ?.studySeconds || 0;
+                studyMinutes * 60;
+
+              const hasData =
+                studyMinutes > 0;
 
               let intensityClass =
                 "bg-slate-50 text-slate-600";
 
-              if (hasData) {
+              if (
+                hasData
+              ) {
                 if (
                   studySeconds >=
                   12 * 3600
@@ -1345,9 +1895,7 @@ const StudyAnalytics = () => {
                 ) {
                   intensityClass =
                     "bg-yellow-100 text-yellow-700";
-                } else if (
-                  studySeconds > 0
-                ) {
+                } else {
                   intensityClass =
                     "bg-red-100 text-red-600";
                 }
@@ -1356,9 +1904,13 @@ const StudyAnalytics = () => {
               return (
                 <button
                   key={day}
-                  disabled={isFuture}
+                  disabled={
+                    isFuture
+                  }
                   onClick={() =>
-                    selectCalendarDate(day)
+                    selectCalendarDate(
+                      day,
+                    )
                   }
                   className={`aspect-square rounded-xl flex flex-col items-center justify-center transition border ${
                     isSelected
@@ -1378,21 +1930,21 @@ const StudyAnalytics = () => {
                   {hasData && (
                     <span className="text-[8px] md:text-[9px] mt-0.5">
                       {formatStudyTime(
-                        studySeconds
+                        studySeconds,
                       )}
                     </span>
                   )}
 
                 </button>
               );
-            }
+            },
           )}
 
         </div>
 
         {/* LEGEND */}
 
-        <div className="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-slate-100">
 
           <Legend
             className="bg-emerald-100"
